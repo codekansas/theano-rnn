@@ -2,7 +2,7 @@
 *.pyc
 
 # the pycharm part isn't either
-.ideas/
+.idea
 
 # weights files
 *.h5
