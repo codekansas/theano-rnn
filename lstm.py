@@ -20,10 +20,10 @@ def _get_zeros(name, *shape, **kwargs):
 
 def generate_rnn(n_in, n_out, n_hidden=50):
 
-    # (n_samples, time_dims, input_dims)
+    # (time_dims, input_dims)
     X = T.matrix(name='X', dtype=dtype)
 
-    # (n_samples, time_dims, output_dims)
+    # (time_dims, output_dims)
     y = T.matrix(name='y', dtype=dtype)
 
     params = list()
@@ -32,25 +32,30 @@ def generate_rnn(n_in, n_out, n_hidden=50):
     w_in_input = _get_weights('U_i', n_in, n_hidden)
     w_hidden_input = _get_weights('W_i', n_hidden, n_hidden)
     b_input = _get_zeros('b_i', n_hidden)
-    params += [w_in_input, w_hidden_input, b_input]
+    # params += [w_in_input, w_hidden_input, b_input]
 
     # forget gate
     w_in_forget = _get_weights('U_f', n_in, n_hidden)
     w_hidden_forget = _get_weights('W_f', n_hidden, n_hidden)
-    b_hidden = _get_zeros('b_h', n_hidden)
-    params += [w_in_forget, w_hidden_forget, b_hidden]
+    b_forget = _get_zeros('b_h', n_hidden)
+    # params += [w_in_forget, w_hidden_forget, b_forget]
 
     # output gate
     w_in_output = _get_weights('U_o', n_in, n_hidden)
     w_hidden_output = _get_weights('W_o', n_hidden, n_hidden)
     b_output = _get_zeros('b_o', n_hidden)
-    params += [w_in_output, w_hidden_output, b_output]
+    # params += [w_in_output, w_hidden_output, b_output]
 
     # hidden state
     w_in_hidden = _get_weights('U_h', n_in, n_hidden)
     w_hidden_hidden = _get_weights('W_h', n_hidden, n_hidden)
     b_hidden = _get_zeros('b_o', n_hidden)
-    params += [w_in_hidden, w_hidden_hidden, b_hidden]
+    # params += [w_in_hidden, w_hidden_hidden, b_hidden]
+
+    # output
+    w_out = _get_weights('W_o', n_hidden, n_out)
+    b_out = _get_zeros('b_o', n_out)
+    # params += [w_out, b_out]
 
     # starting hidden and memory unit state
     h_0 = _get_zeros('h_0', n_hidden)
@@ -58,14 +63,20 @@ def generate_rnn(n_in, n_out, n_hidden=50):
     params += [h_0, c_0]
 
     def step(x_t, h_tm1, c_tm1):
-        input_gate = T.nnet.sigmoid(T.dot(x_t, w_in_input) + T.dot(h_tm1))
+        input_gate = T.nnet.sigmoid(T.dot(x_t, w_in_input) + T.dot(h_tm1, w_hidden_input) + b_input)
+        forget_gate = T.nnet.sigmoid(T.dot(x_t, w_in_forget) + T.dot(h_tm1, w_hidden_forget) + b_forget)
+        output_gate = T.nnet.sigmoid(T.dot(x_t, w_in_output) + T.dot(h_tm1, w_hidden_output) + b_output)
 
-        return h_t, y_t
+        candidate_state = T.tanh(T.dot(x_t, w_in_hidden) + T.dot(h_tm1, w_hidden_hidden) + b_hidden)
+        memory_unit = c_tm1 * forget_gate + candidate_state * input_gate
+
+        h_t = T.tanh(memory_unit) * output_gate
+        y_t = T.nnet.sigmoid(T.dot(h_t, w_out) + b_out)
+
+        return h_t, memory_unit, y_t
 
     [_, _, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, c_0, None], n_steps=X.shape[0])
 
-    # z_1 = _transfer(T.dot(X, w_in) + T.repeat(b_hidden, X.shape[1], axis=0))
-    # output = _transfer(T.dot(z_1, w_out) + T.repeat(b_out, z_1.shape[1], axis=0))
     return X, y, output, params
 
 
@@ -77,7 +88,7 @@ if __name__ == '__main__':
 
     lr = T.scalar(name='lr', dtype=dtype)
 
-    # logistic regression, minimize l2 norm
+    # minimize binary crossentropy
     xent = -y * T.log(output) - (1 - y) * T.log(1 - output)
     cost = xent.mean()
 

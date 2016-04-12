@@ -20,10 +20,10 @@ def _get_zeros(name, *shape, **kwargs):
 
 def generate_rnn(n_in, n_out, n_hidden=50):
 
-    # (n_samples, time_dims, input_dims)
+    # (time_dims, input_dims)
     X = T.matrix(name='X', dtype=dtype)
 
-    # (n_samples, time_dims, output_dims)
+    # (time_dims, output_dims)
     y = T.matrix(name='y', dtype=dtype)
 
     params = list()
@@ -59,14 +59,14 @@ def generate_rnn(n_in, n_out, n_hidden=50):
         update_gate = T.nnet.sigmoid(T.dot(x_t, w_in_update) + T.dot(h_tm1, w_hidden_update) + b_update)
         reset_gate = T.nnet.sigmoid(T.dot(x_t, w_in_reset) + T.dot(h_tm1, w_hidden_reset) + b_reset)
         h_t_temp = T.tanh(T.dot(x_t, w_in_hidden) + T.dot(h_tm1 * reset_gate, w_reset_hidden) + b_in_hidden)
+
         h_t = (1 - update_gate) * h_t_temp + update_gate * h_tm1
         y_t = T.nnet.sigmoid(T.dot(h_t, w_out) + b_out)
+
         return h_t, y_t
 
-    [_, _, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, None], n_steps=X.shape[0])
+    [_, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, None], n_steps=X.shape[0])
 
-    # z_1 = _transfer(T.dot(X, w_in) + T.repeat(b_hidden, X.shape[1], axis=0))
-    # output = _transfer(T.dot(z_1, w_out) + T.repeat(b_out, z_1.shape[1], axis=0))
     return X, y, output, params
 
 
@@ -78,7 +78,7 @@ if __name__ == '__main__':
 
     lr = T.scalar(name='lr', dtype=dtype)
 
-    # logistic regression, minimize l2 norm
+    # minimize binary crossentropy
     xent = -y * T.log(output) - (1 - y) * T.log(1 - output)
     cost = xent.mean()
 
