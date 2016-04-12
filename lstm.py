@@ -32,30 +32,30 @@ def generate_rnn(n_in, n_out, n_hidden=50):
     w_in_input = _get_weights('U_i', n_in, n_hidden)
     w_hidden_input = _get_weights('W_i', n_hidden, n_hidden)
     b_input = _get_zeros('b_i', n_hidden)
-    # params += [w_in_input, w_hidden_input, b_input]
+    params += [w_in_input, w_hidden_input, b_input]
 
     # forget gate
     w_in_forget = _get_weights('U_f', n_in, n_hidden)
     w_hidden_forget = _get_weights('W_f', n_hidden, n_hidden)
     b_forget = _get_zeros('b_h', n_hidden)
-    # params += [w_in_forget, w_hidden_forget, b_forget]
+    params += [w_in_forget, w_hidden_forget, b_forget]
 
     # output gate
     w_in_output = _get_weights('U_o', n_in, n_hidden)
     w_hidden_output = _get_weights('W_o', n_hidden, n_hidden)
     b_output = _get_zeros('b_o', n_hidden)
-    # params += [w_in_output, w_hidden_output, b_output]
+    params += [w_in_output, w_hidden_output, b_output]
 
     # hidden state
     w_in_hidden = _get_weights('U_h', n_in, n_hidden)
     w_hidden_hidden = _get_weights('W_h', n_hidden, n_hidden)
     b_hidden = _get_zeros('b_o', n_hidden)
-    # params += [w_in_hidden, w_hidden_hidden, b_hidden]
+    params += [w_in_hidden, w_hidden_hidden, b_hidden]
 
     # output
     w_out = _get_weights('W_o', n_hidden, n_out)
     b_out = _get_zeros('b_o', n_out)
-    # params += [w_out, b_out]
+    params += [w_out, b_out]
 
     # starting hidden and memory unit state
     h_0 = _get_zeros('h_0', n_hidden)
