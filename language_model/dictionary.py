@@ -4,6 +4,11 @@ from __future__ import print_function
 import pickle
 import sys
 
+from gensim.utils import tokenize
+from keras.preprocessing.sequence import pad_sequences
+from numpy import asarray
+import numpy as np
+
 
 class Dictionary:
     def __init__(self):
@@ -40,14 +45,13 @@ class Dictionary:
     def __getitem__(self, item):
         return self.token2id.get(item, self._id)
 
+    def __call__(self, item):
+        return self.id2token[item] if 0 <= item < len(self.token2id) else 'UNKNOWN'
+
     def __len__(self):
-        return self._id + 1
+        return self._id + 2
 
-    def convert(self, text, max_len):
-        from gensim.utils import tokenize
-        from keras.preprocessing.sequence import pad_sequences
-        from numpy import asarray
-
+    def convert(self, text, maxlen=None):
         if isinstance(text, str):
             docs = [tokenize(text, to_lower=True)]
         else:
@@ -57,7 +61,15 @@ class Dictionary:
                 print('Object {} is not iterable'.format(type(text)))
                 sys.exit(1)
 
-        return pad_sequences([asarray([self[t] for t in doc]) for doc in docs])
+        return pad_sequences([asarray([self[t] for t in doc], dtype=np.int32) for doc in docs], maxlen=maxlen, value=self._id + 1)
+
+    def revert(self, tokens):
+        texts = list()
+
+        for token in tokens:
+            texts.append(' '.join([self(t) for t in token]))
+
+        return texts
 
     def strip(self, n):
         self._token_counts = dict((k, v) for k, v in self._token_counts.items() if v > n)
@@ -67,6 +79,9 @@ class Dictionary:
 
     def save(self, file_name):
         pickle.dump(self, open(file_name, 'wb'))
+
+    def __repr__(self):
+        return '<Dictionary (%d tokens)>' % self._id
 
     @staticmethod
     def load(file_name):

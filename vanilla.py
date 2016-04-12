@@ -18,10 +18,13 @@ def _get_zeros(name, *shape, **kwargs):
     return theano.shared(np.zeros(shape=shape, dtype=dtype), name=name, borrow=True)
 
 
-def generate_rnn(n_in, n_out, n_hidden=50):
+def generate_rnn(n_in, n_out, n_hidden=50, input_var=None):
 
     # (time_dims, input_dims)
-    X = T.matrix(name='X', dtype=dtype)
+    if input_var is None:
+        X = T.matrix(name='X', dtype=dtype)
+    else:
+        X = input_var
 
     # (time_dims, output_dims)
     y = T.matrix(name='y', dtype=dtype)

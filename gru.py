@@ -18,42 +18,53 @@ def _get_zeros(name, *shape, **kwargs):
     return theano.shared(np.zeros(shape=shape, dtype=dtype), name=name, borrow=True)
 
 
-def generate_rnn(n_in, n_out, n_hidden=50):
+def generate_rnn(n_in, n_out, n_hidden=50, input_var=None, share_params=None):
 
     # (time_dims, input_dims)
-    X = T.matrix(name='X', dtype=dtype)
+    if input_var is None:
+        X = T.matrix(name='X', dtype=dtype)
+    else:
+        X = input_var
 
     # (time_dims, output_dims)
     y = T.matrix(name='y', dtype=dtype)
 
-    params = list()
+    if share_params is None:
+        params = list()
 
-    # update gate
-    w_in_update = _get_weights('U_z', n_in, n_hidden)
-    w_hidden_update = _get_weights('W_z', n_hidden, n_hidden)
-    b_update = _get_zeros('b_z', n_hidden)
-    params += [w_in_update, w_hidden_update, b_update]
+        # update gate
+        w_in_update = _get_weights('U_z', n_in, n_hidden)
+        w_hidden_update = _get_weights('W_z', n_hidden, n_hidden)
+        b_update = _get_zeros('b_z', n_hidden)
+        params += [w_in_update, w_hidden_update, b_update]
 
-    # reset gate
-    w_in_reset = _get_weights('U_r', n_in, n_hidden)
-    w_hidden_reset = _get_weights('W_r', n_hidden, n_hidden)
-    b_reset = _get_weights('b_r', n_hidden)
-    params += [w_in_reset, w_hidden_reset, b_reset]
+        # reset gate
+        w_in_reset = _get_weights('U_r', n_in, n_hidden)
+        w_hidden_reset = _get_weights('W_r', n_hidden, n_hidden)
+        b_reset = _get_weights('b_r', n_hidden)
+        params += [w_in_reset, w_hidden_reset, b_reset]
 
-    # hidden layer
-    w_in_hidden = _get_weights('U_h', n_in, n_hidden)
-    w_reset_hidden = _get_weights('W_h', n_hidden, n_hidden)
-    b_in_hidden = _get_zeros('b_h', n_hidden)
-    params += [w_in_hidden, w_reset_hidden, b_in_hidden]
+        # hidden layer
+        w_in_hidden = _get_weights('U_h', n_in, n_hidden)
+        w_reset_hidden = _get_weights('W_h', n_hidden, n_hidden)
+        b_in_hidden = _get_zeros('b_h', n_hidden)
+        params += [w_in_hidden, w_reset_hidden, b_in_hidden]
 
-    # output
-    w_out = _get_weights('W_o', n_hidden, n_out)
-    b_out = _get_zeros('b_o', n_out)
-    params += [w_out, b_out]
+        # output
+        w_out = _get_weights('W_o', n_hidden, n_out)
+        b_out = _get_zeros('b_o', n_out)
+        params += [w_out, b_out]
 
-    # starting hidden state
-    h_0 = _get_zeros('h_0', n_hidden)
-    params += [h_0]
+        # starting hidden state
+        h_0 = _get_zeros('h_0', n_hidden)
+        params += [h_0]
+    else:
+        params = share_params
+
+        w_in_update, w_hidden_update, b_update,\
+            w_in_reset, w_hidden_reset, b_reset,\
+            w_in_hidden, w_reset_hidden, b_in_hidden,\
+            w_out, b_out, h_0 = params
 
     def step(x_t, h_tm1):
         update_gate = T.nnet.sigmoid(T.dot(x_t, w_in_update) + T.dot(h_tm1, w_hidden_update) + b_update)

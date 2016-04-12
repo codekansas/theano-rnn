@@ -18,13 +18,15 @@ def _get_zeros(name, *shape, **kwargs):
     return theano.shared(np.zeros(shape=shape, dtype=dtype), name=name, borrow=True)
 
 
-def generate_rnn(n_in, n_out, n_hidden=50, input_var=None):
+def generate_rnn(n_in, n_out, q_emb_size, n_hidden=50, input_var=None):
 
     # (time_dims, input_dims)
     if input_var is None:
         X = T.matrix(name='X', dtype=dtype)
     else:
         X = input_var
+
+    q = T.col(name='q', dtype=dtype)
 
     # (time_dims, output_dims)
     y = T.matrix(name='y', dtype=dtype)
@@ -65,6 +67,12 @@ def generate_rnn(n_in, n_out, n_hidden=50, input_var=None):
     c_0 = _get_zeros('c_0', n_hidden)
     params += [h_0, c_0]
 
+    # attention parameters
+    w_am = _get_weights('W_am', n_hidden, n_hidden)
+    w_qm = _get_weights('W_qm', n_hidden, n_hidden)
+    w_ms = _get_weights('W_ms', n_hidden, 1)
+    params += [w_am, w_qm, w_ms]
+
     def step(x_t, h_tm1, c_tm1):
         input_gate = T.nnet.sigmoid(T.dot(x_t, w_in_input) + T.dot(h_tm1, w_hidden_input) + b_input)
         forget_gate = T.nnet.sigmoid(T.dot(x_t, w_in_forget) + T.dot(h_tm1, w_hidden_forget) + b_forget)
@@ -74,6 +82,12 @@ def generate_rnn(n_in, n_out, n_hidden=50, input_var=None):
         memory_unit = c_tm1 * forget_gate + candidate_state * input_gate
 
         h_t = T.tanh(memory_unit) * output_gate
+
+        # question embedding part
+        m_a = T.tanh(T.dot(h_t, w_am) + T.dot(q, w_qm))
+        s_a = T.exp(T.dot(m_a, w_ms)).sum() # sum part is to convert it
+        h_t = h_t * s_a
+
         y_t = T.nnet.sigmoid(T.dot(h_t, w_out) + b_out)
 
         return h_t, memory_unit, y_t
