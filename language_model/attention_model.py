@@ -1,136 +1,224 @@
-from __future__ import print_function
-
-import theano
-from theano import tensor as T
+from __future__ import absolute_import
 import numpy as np
 
-rng = np.random.RandomState(42)
-dtype = theano.config.floatX
+from keras import backend as K
+from keras import activations, initializations, regularizers
+from keras.engine import Layer, InputSpec
+from keras.layers import Recurrent, time_distributed_dense
 
 
-def _get_weights(name, *shape, **kwargs):
-    """ Initialize a weight matrix of size `n_in` by `n_out` with random values from `low` to `high` """
-    low, high = kwargs.get('low', -1), kwargs.get('high', 1)
-    return theano.shared(np.asarray(rng.rand(*shape) * (high - low) + low, dtype=dtype), name=name, borrow=True)
+class AttentionLSTM(Recurrent):
+    def __init__(self, output_dim, attention_vec,
+                 init='glorot_uniform', inner_init='orthogonal',
+                 forget_bias_init='one', activation='tanh',
+                 inner_activation='hard_sigmoid',
+                 W_regularizer=None, U_regularizer=None, b_regularizer=None,
+                 dropout_W=0., dropout_U=0., **kwargs):
+        self.attention_vec = attention_vec
+        self.output_dim = output_dim
+        self.init = initializations.get(init)
+        self.inner_init = initializations.get(inner_init)
+        self.forget_bias_init = initializations.get(forget_bias_init)
+        self.activation = activations.get(activation)
+        self.inner_activation = activations.get(inner_activation)
+        self.W_regularizer = regularizers.get(W_regularizer)
+        self.U_regularizer = regularizers.get(U_regularizer)
+        self.b_regularizer = regularizers.get(b_regularizer)
+        self.dropout_W, self.dropout_U = dropout_W, dropout_U
 
+        if self.dropout_W or self.dropout_U:
+            self.uses_learning_phase = True
+        super(AttentionLSTM, self).__init__(**kwargs)
 
-def _get_zeros(name, *shape, **kwargs):
-    return theano.shared(np.zeros(shape=shape, dtype=dtype), name=name, borrow=True)
+    def build(self, input_shape):
+        self.input_spec = [InputSpec(shape=input_shape)]
 
+        input_dim = input_shape[2]
 
-def generate_rnn(n_in, n_out, q_emb_size, n_hidden=50, input_var=None):
+        if hasattr(self.attention_vec, '_keras_shape'):
+            attention_dim = self.attention_vec._keras_shape[1]
+            assert isinstance(attention_dim, int), 'Bad dimensions for attention vector'
+        else:
+            raise Exception('Layer could not be build: No information about expected input shape.')
 
-    # (time_dims, input_dims)
-    if input_var is None:
-        X = T.matrix(name='X', dtype=dtype)
-    else:
-        X = input_var
+        self.input_dim = input_dim
 
-    q = T.col(name='q', dtype=dtype)
+        if self.stateful:
+            self.reset_states()
+        else:
+            # initial states: 2 all-zero tensors of shape (output_dim)
+            self.states = [None, None]
 
-    # (time_dims, output_dims)
-    y = T.matrix(name='y', dtype=dtype)
+        self.W_i = self.init((input_dim, self.output_dim),
+                             name='{}_W_i'.format(self.name))
+        self.U_i = self.inner_init((self.output_dim, self.output_dim),
+                                   name='{}_U_i'.format(self.name))
+        self.b_i = K.zeros((self.output_dim,), name='{}_b_i'.format(self.name))
 
-    params = list()
+        self.W_f = self.init((input_dim, self.output_dim),
+                             name='{}_W_f'.format(self.name))
+        self.U_f = self.inner_init((self.output_dim, self.output_dim),
+                                   name='{}_U_f'.format(self.name))
+        self.b_f = self.forget_bias_init((self.output_dim,),
+                                         name='{}_b_f'.format(self.name))
 
-    # input gate
-    w_in_input = _get_weights('U_i', n_in, n_hidden)
-    w_hidden_input = _get_weights('W_i', n_hidden, n_hidden)
-    b_input = _get_zeros('b_i', n_hidden)
-    params += [w_in_input, w_hidden_input, b_input]
+        self.W_c = self.init((input_dim, self.output_dim),
+                             name='{}_W_c'.format(self.name))
+        self.U_c = self.inner_init((self.output_dim, self.output_dim),
+                                   name='{}_U_c'.format(self.name))
+        self.b_c = K.zeros((self.output_dim,), name='{}_b_c'.format(self.name))
 
-    # forget gate
-    w_in_forget = _get_weights('U_f', n_in, n_hidden)
-    w_hidden_forget = _get_weights('W_f', n_hidden, n_hidden)
-    b_forget = _get_zeros('b_h', n_hidden)
-    params += [w_in_forget, w_hidden_forget, b_forget]
+        self.W_o = self.init((input_dim, self.output_dim),
+                             name='{}_W_o'.format(self.name))
+        self.U_o = self.inner_init((self.output_dim, self.output_dim),
+                                   name='{}_U_o'.format(self.name))
+        self.b_o = K.zeros((self.output_dim,), name='{}_b_o'.format(self.name))
 
-    # output gate
-    w_in_output = _get_weights('U_o', n_in, n_hidden)
-    w_hidden_output = _get_weights('W_o', n_hidden, n_hidden)
-    b_output = _get_zeros('b_o', n_hidden)
-    params += [w_in_output, w_hidden_output, b_output]
+        # attention parameters
+        self.U_a = self.inner_init((self.output_dim, self.output_dim),
+                                   name='{}_U_a'.format(self.name))
+        self.U_m = self.inner_init((attention_dim, self.output_dim),
+                                   name='{}_U_m'.format(self.name))
+        self.U_s = self.inner_init((self.output_dim, 1),
+                                   name='{}_U_s'.format(self.name))
 
-    # hidden state
-    w_in_hidden = _get_weights('U_h', n_in, n_hidden)
-    w_hidden_hidden = _get_weights('W_h', n_hidden, n_hidden)
-    b_hidden = _get_zeros('b_o', n_hidden)
-    params += [w_in_hidden, w_hidden_hidden, b_hidden]
+        self.regularizers = []
+        if self.W_regularizer:
+            self.W_regularizer.set_param(K.concatenate([self.W_i,
+                                                        self.W_f,
+                                                        self.W_c,
+                                                        self.W_o]))
+            self.regularizers.append(self.W_regularizer)
+        if self.U_regularizer:
+            self.U_regularizer.set_param(K.concatenate([self.U_a,
+                                                        self.U_m,
+                                                        self.U_s,
+                                                        self.U_i,
+                                                        self.U_f,
+                                                        self.U_c,
+                                                        self.U_o]))
+            self.regularizers.append(self.U_regularizer)
+        if self.b_regularizer:
+            self.b_regularizer.set_param(K.concatenate([self.b_i,
+                                                        self.b_f,
+                                                        self.b_c,
+                                                        self.b_o]))
+            self.regularizers.append(self.b_regularizer)
 
-    # output
-    w_out = _get_weights('W_o', n_hidden, n_out)
-    b_out = _get_zeros('b_o', n_out)
-    params += [w_out, b_out]
+        self.trainable_weights = [self.W_i, self.U_i, self.b_i,
+                                  self.W_c, self.U_c, self.b_c,
+                                  self.W_f, self.U_f, self.b_f,
+                                  self.W_o, self.U_o, self.b_o,
+                                  self.U_a, self.U_m, self.U_s]
 
-    # starting hidden and memory unit state
-    h_0 = _get_zeros('h_0', n_hidden)
-    c_0 = _get_zeros('c_0', n_hidden)
-    params += [h_0, c_0]
+        if self.initial_weights is not None:
+            self.set_weights(self.initial_weights)
+            del self.initial_weights
 
-    # attention parameters
-    w_am = _get_weights('W_am', n_hidden, n_hidden)
-    w_qm = _get_weights('W_qm', n_hidden, n_hidden)
-    w_ms = _get_weights('W_ms', n_hidden, 1)
-    params += [w_am, w_qm, w_ms]
+    def reset_states(self):
+        assert self.stateful, 'Layer must be stateful.'
+        input_shape = self.input_spec[0].shape
+        if not input_shape[0]:
+            raise Exception('If a RNN is stateful, a complete ' +
+                            'input_shape must be provided (including batch size).')
+        if hasattr(self, 'states'):
+            K.set_value(self.states[0],
+                        np.zeros((input_shape[0], self.output_dim)))
+            K.set_value(self.states[1],
+                        np.zeros((input_shape[0], self.output_dim)))
+        else:
+            self.states = [K.zeros((input_shape[0], self.output_dim)),
+                           K.zeros((input_shape[0], self.output_dim))]
 
-    def step(x_t, h_tm1, c_tm1):
-        input_gate = T.nnet.sigmoid(T.dot(x_t, w_in_input) + T.dot(h_tm1, w_hidden_input) + b_input)
-        forget_gate = T.nnet.sigmoid(T.dot(x_t, w_in_forget) + T.dot(h_tm1, w_hidden_forget) + b_forget)
-        output_gate = T.nnet.sigmoid(T.dot(x_t, w_in_output) + T.dot(h_tm1, w_hidden_output) + b_output)
+    def preprocess_input(self, x, train=False):
+        if self.consume_less == 'cpu':
+            if train and (0 < self.dropout_W < 1):
+                dropout = self.dropout_W
+            else:
+                dropout = 0
+            input_shape = self.input_spec[0].shape
+            input_dim = input_shape[2]
+            timesteps = input_shape[1]
 
-        candidate_state = T.tanh(T.dot(x_t, w_in_hidden) + T.dot(h_tm1, w_hidden_hidden) + b_hidden)
-        memory_unit = c_tm1 * forget_gate + candidate_state * input_gate
+            x_i = time_distributed_dense(x, self.W_i, self.b_i, dropout,
+                                         input_dim, self.output_dim, timesteps)
+            x_f = time_distributed_dense(x, self.W_f, self.b_f, dropout,
+                                         input_dim, self.output_dim, timesteps)
+            x_c = time_distributed_dense(x, self.W_c, self.b_c, dropout,
+                                         input_dim, self.output_dim, timesteps)
+            x_o = time_distributed_dense(x, self.W_o, self.b_o, dropout,
+                                         input_dim, self.output_dim, timesteps)
+            return K.concatenate([x_i, x_f, x_c, x_o], axis=2)
+        else:
+            return x
 
-        h_t = T.tanh(memory_unit) * output_gate
+    def step(self, x, states):
+        h_tm1 = states[0]
+        c_tm1 = states[1]
+        B_U = states[2]
+        B_W = states[3]
+        attention = states[4]
 
-        # question embedding part
-        m_a = T.tanh(T.dot(h_t, w_am) + T.dot(q, w_qm))
-        s_a = T.exp(T.dot(m_a, w_ms)).sum() # sum part is to convert it
-        h_t = h_t * s_a
+        if self.consume_less == 'cpu':
+            x_i = x[:, :self.output_dim]
+            x_f = x[:, self.output_dim: 2 * self.output_dim]
+            x_c = x[:, 2 * self.output_dim: 3 * self.output_dim]
+            x_o = x[:, 3 * self.output_dim:]
+        else:
+            x_i = K.dot(x * B_W[0], self.W_i) + self.b_i
+            x_f = K.dot(x * B_W[1], self.W_f) + self.b_f
+            x_c = K.dot(x * B_W[2], self.W_c) + self.b_c
+            x_o = K.dot(x * B_W[3], self.W_o) + self.b_o
 
-        y_t = T.nnet.sigmoid(T.dot(h_t, w_out) + b_out)
+        i = self.inner_activation(x_i + K.dot(h_tm1 * B_U[0], self.U_i))
+        f = self.inner_activation(x_f + K.dot(h_tm1 * B_U[1], self.U_f))
+        c = f * c_tm1 + i * self.activation(x_c + K.dot(h_tm1 * B_U[2], self.U_c))
+        o = self.inner_activation(x_o + K.dot(h_tm1 * B_U[3], self.U_o))
 
-        return h_t, memory_unit, y_t
+        h = o * self.activation(c)
 
-    [_, _, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, c_0, None], n_steps=X.shape[0])
+        # attention part: i'm not sure if K.dot(self.attention_vec, self.U_m) is run every step...
+        m = self.activation(K.dot(h, self.U_a) + attention)
+        s = K.exp(K.dot(m, self.U_s))
+        h = h * K.repeat_elements(s, self.output_dim, axis=1)
 
-    return X, y, output, params
+        return h, [h, c]
 
+    def get_constants(self, x):
+        constants = []
+        if 0 < self.dropout_U < 1:
+            ones = K.ones_like(K.reshape(x[:, 0, 0], (-1, 1)))
+            ones = K.concatenate([ones] * self.output_dim, 1)
+            B_U = [K.dropout(ones, self.dropout_U) for _ in range(4)]
+            constants.append(B_U)
+        else:
+            constants.append([K.cast_to_floatx(1.) for _ in range(4)])
 
-if __name__ == '__main__':
-    import optimizers
+        if self.consume_less == 'cpu' and 0 < self.dropout_W < 1:
+            input_shape = self.input_spec[0].shape
+            input_dim = input_shape[-1]
+            ones = K.ones_like(K.reshape(x[:, 0, 0], (-1, 1)))
+            ones = K.concatenate([ones] * input_dim, 1)
+            B_W = [K.dropout(ones, self.dropout_W) for _ in range(4)]
+            constants.append(B_W)
+        else:
+            constants.append([K.cast_to_floatx(1.) for _ in range(4)])
 
-    n_in, n_out = 10, 1
+        constants.append(K.dot(self.attention_vec, self.U_m))
 
-    X, y, output, params = generate_rnn(n_in, n_out, 50)
-    output = output[-1, :]
+        return constants
 
-    lr = T.scalar(name='lr', dtype=dtype)
-
-    # minimize binary crossentropy
-    xent = -y * T.log(output) - (1 - y) * T.log(1 - output)
-    cost = xent.mean()
-
-    updates = optimizers.rmsprop(cost, params, lr)
-
-    t_sets = 10
-    X_datas = [np.asarray(rng.rand(20, n_in) > 0.5, dtype=dtype) for _ in range(t_sets)]
-    y_datas = [np.asarray(rng.rand(1, n_out) > 0.5, dtype=dtype) for _ in range(t_sets)]
-
-    train = theano.function([X, y, lr], [cost], updates=updates)
-    test = theano.function([X], [output])
-
-    l = 0.1
-    n_train = 1000
-
-    cost = sum([train(X_data, y_data, 0)[0] for X_data, y_data in zip(X_datas, y_datas)])
-    print('Before training:', cost)
-
-    for i in range(n_train):
-        for X_data, y_data in zip(X_datas, y_datas):
-            train(X_data, y_data, l)
-
-        if (i+1) % (n_train / 5) == 0:
-            cost = sum([train(X_data, y_data, 0)[0] for X_data, y_data in zip(X_datas, y_datas)])
-            print('%d (lr = %f):' % (i+1, l), cost)
-            l *= 0.5
+    def get_config(self):
+        config = {"output_dim": self.output_dim,
+                  "init": self.init.__name__,
+                  "inner_init": self.inner_init.__name__,
+                  "forget_bias_init": self.forget_bias_init.__name__,
+                  "activation": self.activation.__name__,
+                  "inner_activation": self.inner_activation.__name__,
+                  "W_regularizer": self.W_regularizer.get_config() if self.W_regularizer else None,
+                  "U_regularizer": self.U_regularizer.get_config() if self.U_regularizer else None,
+                  "b_regularizer": self.b_regularizer.get_config() if self.b_regularizer else None,
+                  "dropout_W": self.dropout_W,
+                  "dropout_U": self.dropout_U}
+        base_config = super(LSTM, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))

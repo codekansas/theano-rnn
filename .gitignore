@@ -4,3 +4,6 @@
 # the pycharm part isn't either
 .ideas/
 
+# weights files
+*.h5
+
