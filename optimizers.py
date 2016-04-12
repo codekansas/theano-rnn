@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import theano
 import theano.tensor as T
+import numpy as np
 
 dtype = theano.config.floatX
 
@@ -48,19 +49,21 @@ def momentum(cost, params, learning_rate, momentum=0.9, type='nesterov'):
     return updates
 
 if __name__ == '__main__':
-    import lstm as rnn
-    import numpy as np
+    import gru as rnn
 
     rng = np.random.RandomState(42)
 
     n_in, n_out = 10, 1
 
     X, y, output, params = rnn.generate_rnn(n_in, n_out, 50)
-    output = output
+    output = output[-1, :]
 
     # minimize binary crossentropy
     xent = -y * T.log(output) - (1 - y) * T.log(1 - output)
     cost = xent.mean()
+
+    # minimize mean squared error (don't get a nan error this way)
+    # cost = 0.5 * ((y - output) ** 2).sum()
 
     lr = T.scalar(name='lr', dtype=dtype)
 
@@ -69,7 +72,7 @@ if __name__ == '__main__':
 
     t_sets = 10
     X_datas = [np.asarray(rng.rand(20, n_in) > 0.5, dtype=dtype) for _ in range(t_sets)]
-    y_datas = [np.asarray(rng.rand(20, n_out) > 0.5, dtype=dtype) for _ in range(t_sets)]
+    y_datas = [np.asarray(rng.rand(1, n_out) > 0.5, dtype=dtype) for _ in range(t_sets)]
 
     train = theano.function([X, y, lr], [cost], updates=updates)
     test = theano.function([X], [output])

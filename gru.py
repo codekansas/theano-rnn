@@ -23,6 +23,9 @@ def generate_rnn(n_in, n_out, n_hidden=50):
     # (time_dims, input_dims)
     X = T.matrix(name='X', dtype=dtype)
 
+    # (time_dims, output_dims)
+    y = T.matrix(name='y', dtype=dtype)
+
     params = list()
 
     # update gate

@@ -1,0 +1,6 @@
+# pyc files aren't necessary
+*.pyc
+
+# the pycharm part isn't either
+.ideas/
+
