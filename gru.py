@@ -28,41 +28,42 @@ def generate_rnn(n_in, n_out, n_hidden=50):
 
     params = list()
 
-    # input gate
-    w_in_input = _get_weights('U_i', n_in, n_hidden)
-    w_hidden_input = _get_weights('W_i', n_hidden, n_hidden)
-    b_input = _get_zeros('b_i', n_hidden)
-    params += [w_in_input, w_hidden_input, b_input]
+    # update gate
+    w_in_update = _get_weights('U_z', n_in, n_hidden)
+    w_hidden_update = _get_weights('W_z', n_hidden, n_hidden)
+    b_update = _get_zeros('b_z', n_hidden)
+    params += [w_in_update, w_hidden_update, b_update]
 
-    # forget gate
-    w_in_forget = _get_weights('U_f', n_in, n_hidden)
-    w_hidden_forget = _get_weights('W_f', n_hidden, n_hidden)
-    b_hidden = _get_zeros('b_h', n_hidden)
-    params += [w_in_forget, w_hidden_forget, b_hidden]
+    # reset gate
+    w_in_reset = _get_weights('U_r', n_in, n_hidden)
+    w_hidden_reset = _get_weights('W_r', n_hidden, n_hidden)
+    b_reset = _get_weights('b_r', n_hidden)
+    params += [w_in_reset, w_hidden_reset, b_reset]
 
-    # output gate
-    w_in_output = _get_weights('U_o', n_in, n_hidden)
-    w_hidden_output = _get_weights('W_o', n_hidden, n_hidden)
-    b_output = _get_zeros('b_o', n_hidden)
-    params += [w_in_output, w_hidden_output, b_output]
-
-    # hidden state
+    # hidden layer
     w_in_hidden = _get_weights('U_h', n_in, n_hidden)
-    w_hidden_hidden = _get_weights('W_h', n_hidden, n_hidden)
-    b_hidden = _get_zeros('b_o', n_hidden)
-    params += [w_in_hidden, w_hidden_hidden, b_hidden]
+    w_reset_hidden = _get_weights('W_h', n_hidden, n_hidden)
+    b_in_hidden = _get_zeros('b_h', n_hidden)
+    params += [w_in_hidden, w_reset_hidden, b_in_hidden]
 
-    # starting hidden and memory unit state
+    # output
+    w_out = _get_weights('W_o', n_hidden, n_out)
+    b_out = _get_zeros('b_o', n_out)
+    params += [w_out, b_out]
+
+    # starting hidden state
     h_0 = _get_zeros('h_0', n_hidden)
-    c_0 = _get_zeros('c_0', n_hidden)
-    params += [h_0, c_0]
+    params += [h_0]
 
-    def step(x_t, h_tm1, c_tm1):
-        input_gate = T.nnet.sigmoid(T.dot(x_t, w_in_input) + T.dot(h_tm1))
-
+    def step(x_t, h_tm1):
+        update_gate = T.nnet.sigmoid(T.dot(x_t, w_in_update) + T.dot(h_tm1, w_hidden_update) + b_update)
+        reset_gate = T.nnet.sigmoid(T.dot(x_t, w_in_reset) + T.dot(h_tm1, w_hidden_reset) + b_reset)
+        h_t_temp = T.tanh(T.dot(x_t, w_in_hidden) + T.dot(h_tm1 * reset_gate, w_reset_hidden) + b_in_hidden)
+        h_t = (1 - update_gate) * h_t_temp + update_gate * h_tm1
+        y_t = T.nnet.sigmoid(T.dot(h_t, w_out) + b_out)
         return h_t, y_t
 
-    [_, _, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, c_0, None], n_steps=X.shape[0])
+    [_, _, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, None], n_steps=X.shape[0])
 
     # z_1 = _transfer(T.dot(X, w_in) + T.repeat(b_hidden, X.shape[1], axis=0))
     # output = _transfer(T.dot(z_1, w_out) + T.repeat(b_out, z_1.shape[1], axis=0))

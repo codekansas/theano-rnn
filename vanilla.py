@@ -41,7 +41,7 @@ def generate_rnn(n_in, n_out, n_hidden=50):
         y_t = T.nnet.sigmoid(T.dot(h_t, w_out) + b_out)
         return h_t, y_t
 
-    [h, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, None], n_steps=X.shape[0])
+    [_, output], _ = theano.scan(fn=step, sequences=X, outputs_info=[h_0, None], n_steps=X.shape[0])
 
     # z_1 = _transfer(T.dot(X, w_in) + T.repeat(b_hidden, X.shape[1], axis=0))
     # output = _transfer(T.dot(z_1, w_out) + T.repeat(b_out, z_1.shape[1], axis=0))
