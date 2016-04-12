@@ -81,6 +81,8 @@ def generate_rnn(n_in, n_out, n_hidden=50):
 
 
 if __name__ == '__main__':
+    import optimizers
+
     n_in, n_out = 10, 1
 
     X, y, output, params = generate_rnn(n_in, n_out, 50)
@@ -92,8 +94,7 @@ if __name__ == '__main__':
     xent = -y * T.log(output) - (1 - y) * T.log(1 - output)
     cost = xent.mean()
 
-    grads = [T.grad(cost=cost, wrt=p) for p in params]
-    updates = [(p, p - lr * g) for p, g in zip(params, grads)]
+    updates = optimizers.rmsprop(cost, params, lr)
 
     t_sets = 10
     X_datas = [np.asarray(rng.rand(20, n_in) > 0.5, dtype=dtype) for _ in range(t_sets)]
