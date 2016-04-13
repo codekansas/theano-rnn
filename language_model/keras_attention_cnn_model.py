@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import theano
+from keras.optimizers import RMSprop
 
 from language_model.attention_lstm import AttentionLSTM
 from language_model.get_data import get_data_set
@@ -65,8 +66,9 @@ model = Model(input=[question, answer], output=target)
 
 # need to choose binary crossentropy or mean squared error
 print('Compiling model...')
-model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy'])
+rmsprop = RMSprop(lr=0.0001)
+model.compile(optimizer=rmsprop, loss='binary_crossentropy', metrics=['accuracy'])
 
 print('Fitting model')
 model.fit([q_train, a_train], t_train, nb_epoch=5, batch_size=32, validation_split=0.1)
-model.save_weights('attention_lm_weights.h5')
+model.save_weights('attention_cnn_lm_weights.h5')
