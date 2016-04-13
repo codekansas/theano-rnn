@@ -19,6 +19,10 @@ q_train, a_train, t_train, q_test, a_test, t_test, n_words = get_data_set(maxlen
 from keras.layers import Input, LSTM, Embedding, merge, Convolution1D, MaxPooling1D, Dense, Flatten
 from keras.models import Model
 
+# parameters
+n_lstm_dims = 128
+n_output_dims = 128
+
 # input
 question = Input(shape=(maxlen,), dtype='int32')
 answer = Input(shape=(maxlen,), dtype='int32')
@@ -27,8 +31,8 @@ answer = Input(shape=(maxlen,), dtype='int32')
 embedding = Embedding(output_dim=512, input_dim=n_words, input_length=maxlen)
 
 # forward and backward lstms
-f_lstm = LSTM(128, return_sequences=True)
-b_lstm = LSTM(128, return_sequences=True, go_backwards=True)
+f_lstm = LSTM(n_lstm_dims, return_sequences=True)
+b_lstm = LSTM(n_lstm_dims, return_sequences=True, go_backwards=True)
 
 # convolution / maxpooling layers
 conv = Convolution1D(64, 3, activation='relu')
@@ -45,8 +49,8 @@ q_out = maxpool(q_out)
 q_out = flat(q_out)
 
 # forward and backward attention lstms (paying attention to q_out)
-f_lstm_attention = AttentionLSTM(128, q_out, return_sequences=True)
-b_lstm_attention = AttentionLSTM(128, q_out, return_sequences=True, go_backwards=True)
+f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, return_sequences=True)
+b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, return_sequences=True, go_backwards=True)
 
 # answer part
 a_emb = embedding(answer)
@@ -57,8 +61,9 @@ a_out = conv(a_out)
 a_out = maxpool(a_out)
 a_out = flat(a_out)
 
-q_out = Dense(128)(q_out)
-a_out = Dense(128)(a_out)
+conv_to_out = Dense(n_output_dims)
+q_out = conv_to_out(q_out)
+a_out = conv_to_out(a_out)
 
 # merge together
 target = merge([q_out, a_out], mode='cos', dot_axes=1)

@@ -210,7 +210,8 @@ class AttentionLSTM(Recurrent):
         ##################
 
         m = self.activation(K.dot(h, self.U_a) + attention)
-        s = K.exp(K.dot(m, self.U_s))
+        # s = K.exp(K.dot(m, self.U_s))
+        s = K.sigmoid(K.dot(m, self.U_s))
         h = h * K.repeat_elements(s, self.output_dim, axis=1)
 
         return h, [h, c]
@@ -255,5 +256,5 @@ class AttentionLSTM(Recurrent):
                   "b_regularizer": self.b_regularizer.get_config() if self.b_regularizer else None,
                   "dropout_W": self.dropout_W,
                   "dropout_U": self.dropout_U}
-        base_config = super(LSTM, self).get_config()
+        base_config = super(AttentionLSTM, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
