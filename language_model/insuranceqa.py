@@ -72,3 +72,5 @@ model = make_model(maxlen, n_words)
 print('Fitting model')
 model.fit([q_data, a_data], targets, nb_epoch=20, batch_size=32, validation_split=0.1)
 model.save_weights('trained_iqa_model.h5')
+
+# TODO write evaluation component (see question.test1, question.test2)
