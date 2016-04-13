@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import re
 import os
 
@@ -39,7 +37,6 @@ def load_qa_pairs():
 
     with open(file_name, 'r') as f:
         lines = re.split('\n|\r', f.read()) # for cross-system compatibility (not sure about windows)
-    print('%d graded answers' % len(lines))
 
     questions = dict()
     answers = dict()

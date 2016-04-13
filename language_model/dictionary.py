@@ -29,11 +29,7 @@ class Dictionary:
         if isinstance(text, str):
             docs = [tokenize(text, to_lower=True)]
         else:
-            try:
-                docs = [tokenize(t, to_lower=True) for t in text]
-            except TypeError:
-                print('Object {} is not iterable'.format(type(text)))
-                sys.exit(1)
+            docs = [tokenize(t, to_lower=True) for t in text]
 
         for doc in docs:
             for t in doc:
@@ -58,11 +54,7 @@ class Dictionary:
         if isinstance(text, str):
             docs = [tokenize(text, to_lower=True)]
         else:
-            try:
-                docs = [tokenize(t, to_lower=True) for t in text]
-            except TypeError:
-                print('Object {} is not iterable'.format(type(text)))
-                sys.exit(1)
+            docs = [tokenize(t, to_lower=True) for t in text]
 
         return pad_sequences([asarray([self(t) for t in doc], dtype=np.int32) for doc in docs], maxlen=maxlen, value=self._id + 1)
 

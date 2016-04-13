@@ -63,7 +63,6 @@ class AttentionLSTM(Recurrent):
 
         if hasattr(self.attention_vec, '_keras_shape'):
             attention_dim = self.attention_vec._keras_shape[1]
-            assert isinstance(attention_dim, int), 'Bad dimensions for attention vector'
         else:
             raise Exception('Layer could not be build: No information about expected input shape.')
 
