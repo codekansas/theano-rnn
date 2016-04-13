@@ -3,11 +3,37 @@ import numpy as np
 
 from keras import backend as K
 from keras import activations, initializations, regularizers
-from keras.engine import Layer, InputSpec
+from keras.engine import InputSpec
 from keras.layers import Recurrent, time_distributed_dense
 
 
 class AttentionLSTM(Recurrent):
+    '''Attentional LSTM - Tan et. al. 2016
+    # Arguments
+        output_dim: dimension of the internal projections and the final output.
+        attention_vec: source layer of the attention vector. should be a flat layer.
+        init: weight initialization function.
+            Can be the name of an existing function (str),
+            or a Theano function (see: [initializations](../initializations.md)).
+        inner_init: initialization function of the inner cells.
+        forget_bias_init: initialization function for the bias of the forget gate.
+            [Jozefowicz et al.](http://www.jmlr.org/proceedings/papers/v37/jozefowicz15.pdf)
+            recommend initializing with ones.
+        activation: activation function.
+            Can be the name of an existing function (str),
+            or a Theano function (see: [activations](../activations.md)).
+        inner_activation: activation function for the inner cells.
+        W_regularizer: instance of [WeightRegularizer](../regularizers.md)
+            (eg. L1 or L2 regularization), applied to the input weights matrices.
+        U_regularizer: instance of [WeightRegularizer](../regularizers.md)
+            (eg. L1 or L2 regularization), applied to the recurrent weights matrices.
+        b_regularizer: instance of [WeightRegularizer](../regularizers.md),
+            applied to the bias.
+        dropout_W: float between 0 and 1. Fraction of the input units to drop for input gates.
+        dropout_U: float between 0 and 1. Fraction of the input units to drop for recurrent connections.
+    # References
+        - [LSTM-based deep learning model for non-factoid answer selection](http://arxiv.org/pdf/1511.04108.pdf)
+    '''
     def __init__(self, output_dim, attention_vec,
                  init='glorot_uniform', inner_init='orthogonal',
                  forget_bias_init='one', activation='tanh',
@@ -74,7 +100,10 @@ class AttentionLSTM(Recurrent):
                                    name='{}_U_o'.format(self.name))
         self.b_o = K.zeros((self.output_dim,), name='{}_b_o'.format(self.name))
 
-        # attention parameters
+        ########################
+        # Attention parameters #
+        ########################
+
         self.U_a = self.inner_init((self.output_dim, self.output_dim),
                                    name='{}_U_a'.format(self.name))
         self.U_m = self.inner_init((attention_dim, self.output_dim),
@@ -177,7 +206,10 @@ class AttentionLSTM(Recurrent):
 
         h = o * self.activation(c)
 
-        # attention part: i'm not sure if K.dot(self.attention_vec, self.U_m) is run every step...
+        ##################
+        # Attention gate #
+        ##################
+
         m = self.activation(K.dot(h, self.U_a) + attention)
         s = K.exp(K.dot(m, self.U_s))
         h = h * K.repeat_elements(s, self.output_dim, axis=1)
@@ -203,6 +235,10 @@ class AttentionLSTM(Recurrent):
             constants.append(B_W)
         else:
             constants.append([K.cast_to_floatx(1.) for _ in range(4)])
+
+        ####################
+        # Attention vector #
+        ####################
 
         constants.append(K.dot(self.attention_vec, self.U_m))
 

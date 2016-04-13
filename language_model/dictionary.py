@@ -1,13 +1,16 @@
 from __future__ import print_function
 
-# import six.modes.cPickle as pickle
-import pickle
+try:
+    import six.modes.cPickle as pickle
+except ImportError:
+    import pickle
+
 import sys
 
-from gensim.utils import tokenize
-from keras.preprocessing.sequence import pad_sequences
 from numpy import asarray
 import numpy as np
+from gensim.utils import tokenize
+from keras.preprocessing.sequence import pad_sequences
 
 
 class Dictionary:
@@ -42,10 +45,10 @@ class Dictionary:
                     self.token2id[t] = self._id
                     self._id += 1
 
-    def __getitem__(self, item):
+    def __call__(self, item):
         return self.token2id.get(item, self._id)
 
-    def __call__(self, item):
+    def __getitem__(self, item):
         return self.id2token[item] if 0 <= item < len(self.token2id) else 'UNKNOWN'
 
     def __len__(self):
@@ -61,13 +64,13 @@ class Dictionary:
                 print('Object {} is not iterable'.format(type(text)))
                 sys.exit(1)
 
-        return pad_sequences([asarray([self[t] for t in doc], dtype=np.int32) for doc in docs], maxlen=maxlen, value=self._id + 1)
+        return pad_sequences([asarray([self(t) for t in doc], dtype=np.int32) for doc in docs], maxlen=maxlen, value=self._id + 1)
 
     def revert(self, tokens):
         texts = list()
 
         for token in tokens:
-            texts.append(' '.join([self(t) for t in token]))
+            texts.append(' '.join([self[t] for t in token]))
 
         return texts
 
@@ -78,7 +81,7 @@ class Dictionary:
         self._id = len(self.id2token)
 
     def save(self, file_name):
-        pickle.dump(self, open(file_name, 'wb'))
+        pickle.dump(self, open(file_name, 'wb+'))
 
     def __repr__(self):
         return '<Dictionary (%d tokens)>' % self._id
@@ -90,4 +93,9 @@ class Dictionary:
 if __name__ == '__main__':
     d = Dictionary()
     d.add('the apples and oranges are very fresh today')
-    print(d.id2token)
+    print(d)
+
+    c = d.convert('today, i want the fresh apples and oranges')
+    print(c)
+    r = d.revert(c)
+    print(r)

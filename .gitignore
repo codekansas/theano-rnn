@@ -4,6 +4,8 @@
 # the pycharm part isn't either
 .idea
 
-# weights files
+# large "data" files
 *.h5
+*.pkl
+*.txt
 
