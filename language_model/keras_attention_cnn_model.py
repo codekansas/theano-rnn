@@ -29,6 +29,7 @@ embedding = Embedding(output_dim=512, input_dim=n_words, input_length=maxlen)
 f_lstm = LSTM(128, return_sequences=True)
 b_lstm = LSTM(128, return_sequences=True, go_backwards=True)
 
+# convolution / maxpooling layers
 conv = Convolution1D(64, 3, activation='relu')
 maxpool = MaxPooling1D()
 flat = Flatten()
