@@ -49,12 +49,13 @@ for qa_pair in lines.split('\n'):
     q, a = qa_pair.split('\t')
     question = np.asarray([to_idx(i) for i in q.split(' ')])
 
-    # append a "bad" answer
-    targets.append(0)
-    q_data.append(question)
-    a_data.append(random.choice(answers.values()))
-
     for answer in a.split(' '):
+        # append a "bad" answer
+        targets.append(0)
+        q_data.append(question)
+        a_data.append(random.choice(answers.values()))
+
+        # append correct answer
         targets.append(1)
         q_data.append(question)
         a_data.append(answers[int(answer)])
@@ -66,11 +67,19 @@ maxlen = 200
 q_data = pad_sequences(q_data, maxlen)
 a_data = pad_sequences(a_data, maxlen)
 
-from keras_attention_model import make_model
-model = make_model(maxlen, n_words)
+'''
+Notes:
+- Using the head/tail as the attention vector gave validation accuracy around 59
+- The maxpooling result appears to be much better (without convolutional layer)
+'''
+
+# the model being used
+from keras_attention_cnn_model import make_model
+training_model, evaluation_model = make_model(maxlen, n_words)
 
 print('Fitting model')
-model.fit([q_data, a_data], targets, nb_epoch=20, batch_size=32, validation_split=0.1)
-model.save_weights('trained_iqa_model.h5')
+training_model.fit([q_data, a_data], targets, nb_epoch=20, batch_size=32, validation_split=0.1)
+training_model.save_weights('trained_iqa_model.h5')
 
 # TODO write evaluation component (see question.test1, question.test2)
+# use evaluation model (it shares weights with the training model)

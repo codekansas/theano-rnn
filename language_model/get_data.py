@@ -98,32 +98,23 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
     if dic is None:
         dic = create_dictionary_from_qas(questions, answers)
 
-    q_test, q_train = list(), list()
-    a_test, a_train = list(), list()
-    t_test, t_train = list(), list()
+    qs, good, bad, targets = list(), list(), list(), list()
 
     for id, question in questions.items():
-        gans, bans = list(), list()
         qc = dic.convert(question['title'] + question['content'], maxlen=maxlen)[0]
 
-        for answer in answers[id]:
-            ac = dic.convert(answer['answer'], maxlen=maxlen)[0]
-            score = int(answer['score'])
+        gans = [dic.convert(a['answer'], maxlen=maxlen)[0] for a in answers[id] if int(a['score']) >= 3]
+        bans = [dic.convert(a['answer'], maxlen=maxlen)[0] for a in answers[id] if int(a['score']) < 3]
 
-            if rng.rand() < 0.1:
-                q_test.append(qc)
-                a_test.append(ac)
-                t_test.append(0 if score < 3 else 1)
-            else:
-                q_train.append(qc)
-                a_train.append(ac)
-                t_train.append(0 if score < 3 else 1)
+        m = min(len(gans), len(bans))
 
-    q_test = np.asarray(q_test)
-    q_train = np.asarray(q_train)
-    a_test = np.asarray(a_test)
-    a_train = np.asarray(a_train)
-    t_test = np.asarray(t_test)
-    t_train = np.asarray(t_train)
+        qs += [qc] * m
+        good += gans[:m]
+        bad += bans[:m]
 
-    return q_train, a_train, t_train, q_test, a_test, t_test, len(dic)
+    targets = np.asarray([0] * len(qs))
+    qs = np.asarray(qs)
+    good = np.asarray(good)
+    bad = np.asarray(bad)
+
+    return targets, qs, good, bad, len(dic)
