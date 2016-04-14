@@ -41,7 +41,8 @@ with open(os.path.join(data_path, 'question.train.token_idx.label'), 'r') as f:
     lines = f.read()
 
 q_data = list()
-a_data = list()
+ag_data = list()
+ab_data = list()
 targets = list()
 
 for qa_pair in lines.split('\n'):
@@ -50,22 +51,18 @@ for qa_pair in lines.split('\n'):
     question = np.asarray([to_idx(i) for i in q.split(' ')])
 
     for answer in a.split(' '):
-        # append a "bad" answer
-        targets.append(0)
         q_data.append(question)
-        a_data.append(random.choice(answers.values()))
-
-        # append correct answer
-        targets.append(1)
-        q_data.append(question)
-        a_data.append(answers[int(answer)])
+        ab_data.append(random.choice(answers.values()))
+        ag_data.append(answers[int(answer)])
 
 # model parameters
 n_words = len(word2idx) + 2
 maxlen = 200
 
+targets = np.asarray([0] * len(q_data))
 q_data = pad_sequences(q_data, maxlen)
-a_data = pad_sequences(a_data, maxlen)
+ab_data = pad_sequences(ab_data, maxlen)
+ag_data = pad_sequences(ag_data, maxlen)
 
 '''
 Notes:
@@ -78,7 +75,7 @@ from keras_attention_cnn_model import make_model
 training_model, evaluation_model = make_model(maxlen, n_words)
 
 print('Fitting model')
-training_model.fit([q_data, a_data], targets, nb_epoch=20, batch_size=32, validation_split=0.1)
+training_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=20, batch_size=32, validation_split=0.2)
 training_model.save_weights('trained_iqa_model.h5')
 
 # TODO write evaluation component (see question.test1, question.test2)
