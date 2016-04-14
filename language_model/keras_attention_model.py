@@ -6,11 +6,6 @@ from __future__ import print_function
 
 
 def make_model(maxlen, n_words, n_lstm_dims=128, n_embed_dims=128):
-    print('maxlen: {}\nn_words: {}\nn_lstm_dims: {}\nn_embed_dims: {}'.format(maxlen,
-                                                                              n_words,
-                                                                              n_lstm_dims,
-                                                                              n_embed_dims))
-
     from keras.optimizers import RMSprop
     import keras.backend as K
 
@@ -92,13 +87,21 @@ if __name__ == '__main__':
     dic = create_dictionary_from_qas()
     targets, questions, good, bad, n_dims = get_data_set(maxlen)
 
-    print(questions[0])
-    print(dic.revert([questions[0]]))
-    print(dic.revert([good[0], bad[0]]))
-
     ### THIS MODEL PERFORMS WELL ON THE TEST SET
     training_model, evaluation_model = make_model(maxlen, n_dims)
 
+    training_model.load_weights('attention_cnn_lm_weights.h5')
+
     print('Fitting model')
     training_model.fit([questions, good, bad], targets, nb_epoch=5, batch_size=32, validation_split=0.2)
-    training_model.save_weights('attention_cnn_lm_weights.h5')
+    training_model.save_weights('attention_cnn_lm_weights.h5', overwrite=True)
+
+    print('----- Evaluating -----')
+    total = (evaluation_model.predict([questions, good]) < 0.5).sum()
+    print('Correctly classified %d correct answers' % total)
+    total /= float(len(questions))
+    print('Rate: %f' % total)
+    total = (evaluation_model.predict([questions, bad]) > 0.5).sum()
+    print('Correctly classified %d incorrect answers' % total)
+    total /= float(len(questions))
+    print('Rate: %f' % total)
