@@ -4,6 +4,7 @@ import re
 import os
 
 import numpy as np
+from keras.preprocessing.sequence import pad_sequences
 
 from language_model.dictionary import Dictionary
 
@@ -68,7 +69,10 @@ def load_qa_pairs():
 # Create dictionary #
 #####################
 
-def create_dictionary_from_qas(questions, answers):
+def create_dictionary_from_qas(questions=None, answers=None):
+
+    if questions == None or answers == None:
+        questions, answers = load_qa_pairs()
 
     if os.path.exists(dict_path):
         dic = Dictionary.load(dict_path)
@@ -101,10 +105,10 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
     qs, good, bad, targets = list(), list(), list(), list()
 
     for id, question in questions.items():
-        qc = dic.convert(question['title'] + question['content'], maxlen=maxlen)[0]
+        qc = dic.convert(question['title'] + question['content'])[0]
 
-        gans = [dic.convert(a['answer'], maxlen=maxlen)[0] for a in answers[id] if int(a['score']) >= 3]
-        bans = [dic.convert(a['answer'], maxlen=maxlen)[0] for a in answers[id] if int(a['score']) < 3]
+        gans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) >= 3]
+        bans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) < 3]
 
         m = min(len(gans), len(bans))
 
@@ -112,9 +116,15 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
         good += gans[:m]
         bad += bans[:m]
 
+    print(max([len(x) for x in qs]))
+    print(max([len(x) for x in good]))
+    print(max([len(x) for x in bad]))
+    print(sum([len(x) for x in good]))
+    print(len([len(x) for x in good]))
+
     targets = np.asarray([0] * len(qs))
-    qs = np.asarray(qs)
-    good = np.asarray(good)
-    bad = np.asarray(bad)
+    qs = pad_sequences(qs, maxlen=maxlen, padding='post')
+    good = pad_sequences(good, maxlen=maxlen, padding='post')
+    bad = pad_sequences(bad, maxlen=maxlen, padding='post')
 
     return targets, qs, good, bad, len(dic)

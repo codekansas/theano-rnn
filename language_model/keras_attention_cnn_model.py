@@ -17,7 +17,7 @@ from keras.layers import Input, LSTM, Embedding, merge, Convolution1D, Dense, Fl
 from keras.models import Model
 
 
-def make_model(maxlen, n_words, n_lstm_dims=128, n_output_dims=128, n_embed_dims=512, n_conv_filters=64, conv_len=3):
+def make_model(maxlen, n_words, n_lstm_dims=128, n_output_dims=256, n_embed_dims=128, n_conv_filters=64, conv_len=3):
     # input
     question = Input(shape=(maxlen,), dtype='int32')
     answer_bad = Input(shape=(maxlen,), dtype='int32')
@@ -27,27 +27,28 @@ def make_model(maxlen, n_words, n_lstm_dims=128, n_output_dims=128, n_embed_dims
     embedding = Embedding(output_dim=n_embed_dims, input_dim=n_words, input_length=maxlen)
 
     # forward and backward lstms
-    f_lstm = LSTM(n_lstm_dims, return_sequences=True)
-    b_lstm = LSTM(n_lstm_dims, go_backwards=True, return_sequences=True)
+    f_lstm = LSTM(n_lstm_dims, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
+    b_lstm = LSTM(n_lstm_dims, go_backwards=True, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
 
-    # convolution / maxpooling layers (i'm not sure if convolutions helped, but pooling did)
-    # conv = Convolution1D(n_conv_filters, conv_len, activation='relu')
-    pool = AveragePooling1D()
-    flat = Flatten()
+    # Note: Change concat_axis to 2 if return_sequences=True
 
     # question part
     q_emb = embedding(question)
     q_fl = f_lstm(q_emb)
     q_bl = b_lstm(q_emb)
     q_out = merge([q_fl, q_bl], mode='concat', concat_axis=1)
-    # q_out = conv(q_out)
-    q_out = pool(q_out)
-    q_out = flat(q_out)
+    # q_out = Convolution1D(n_conv_filters, conv_len, activation='relu')(q_out)
+    # q_out = AveragePooling1D()(q_out)
+    # q_out = Flatten()(q_out)
 
     # forward and backward attention lstms (paying attention to q_out)
-    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, return_sequences=True)
-    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, return_sequences=True)
+    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
+    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
 
+    # convolution / maxpooling layers
+    # conv = Convolution1D(n_conv_filters, conv_len, activation='relu')
+    pool = AveragePooling1D()
+    flat = Flatten()
     conv_to_out = Dense(n_output_dims)
 
     # answer part
@@ -55,21 +56,21 @@ def make_model(maxlen, n_words, n_lstm_dims=128, n_output_dims=128, n_embed_dims
     ab_fl = f_lstm_attention(ab_emb)
     ab_bl = b_lstm_attention(ab_emb)
     ab_out = merge([ab_fl, ab_bl], mode='concat', concat_axis=1)
-    # a_out = conv(a_out)
-    ab_out = pool(ab_out)
-    ab_out = flat(ab_out)
-    ab_out = conv_to_out(ab_out)
+    # ab_out = conv(ab_out)
+    # ab_out = pool(ab_out)
+    # ab_out = flat(ab_out)
+    # ab_out = conv_to_out(ab_out)
 
     ag_emb = embedding(answer_good)
     ag_fl = f_lstm_attention(ag_emb)
     ag_bl = b_lstm_attention(ag_emb)
     ag_out = merge([ag_fl, ag_bl], mode='concat', concat_axis=1)
-    # a_out = conv(a_out)
-    ag_out = pool(ag_out)
-    ag_out = flat(ag_out)
-    ag_out = conv_to_out(ag_out)
+    # ag_out = conv(ag_out)
+    # ag_out = pool(ag_out)
+    # ag_out = flat(ag_out)
+    # ag_out = conv_to_out(ag_out)
 
-    q_out = Dense(n_output_dims)(q_out)
+    # q_out = Dense(n_output_dims)(q_out)
 
     # merge together
     target_bad = merge([q_out, ab_out], name='target_bad', mode='cos', dot_axes=1)
@@ -90,11 +91,10 @@ def make_model(maxlen, n_words, n_lstm_dims=128, n_output_dims=128, n_embed_dims
     # below, "a" is a list of zeros and "b" is `target` above, i.e. 1 - cosine(q, a+) + cosine(q, a-)
     def loss(a, b):
         return K.maximum(a, b)
-    
-    # loss = 'binary_crossentropy'
+    # loss = 'mse'
 
-    # unfortunately, the hinge loss approach means the "accuracy" metric isn't really worth shit
-    metrics = [] # ['accuracy']
+    # unfortunately, the hinge loss approach means the "accura cy" metric isn't very valuable
+    metrics = ['accuracy']
 
     training_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
     evaluation_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
@@ -109,5 +109,5 @@ if __name__ == '__main__':
     training_model, evaluation_model = make_model(maxlen, n_dims)
 
     print('Fitting model')
-    training_model.fit([questions, good, bad], targets, nb_epoch=5, batch_size=32, validation_split=0.1)
+    training_model.fit([questions, good, bad], targets, nb_epoch=5, batch_size=32, validation_split=0.2)
     training_model.save_weights('attention_cnn_lm_weights.h5')

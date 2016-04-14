@@ -43,7 +43,6 @@ with open(os.path.join(data_path, 'question.train.token_idx.label'), 'r') as f:
 q_data = list()
 ag_data = list()
 ab_data = list()
-targets = list()
 
 for qa_pair in lines.split('\n'):
     if len(qa_pair) == 0: continue
@@ -55,14 +54,31 @@ for qa_pair in lines.split('\n'):
         ab_data.append(random.choice(answers.values()))
         ag_data.append(answers[int(answer)])
 
+
+def convert(text):
+    return [word2idx.get(i, len(word2idx)) for i in text.split(' ')]
+
+
+def revert(ids):
+    return ' '.join([idx2word.get(i, 'UNKNOWN') for i in ids])
+
 # model parameters
 n_words = len(word2idx) + 2
-maxlen = 200
+maxlen = 100
+
+# shuffle the data (i'm not sure if keras does this, but it could help generalize)
+combined = zip(q_data, ab_data, ag_data)
+random.shuffle(combined)
+q_data[:], ab_data[:], ag_data[:] = zip(*combined)
+
+print(revert(q_data[15]))
+print(revert(ab_data[15]))
+print(revert(ag_data[15]))
 
 targets = np.asarray([0] * len(q_data))
-q_data = pad_sequences(q_data, maxlen)
-ab_data = pad_sequences(ab_data, maxlen)
-ag_data = pad_sequences(ag_data, maxlen)
+q_data = pad_sequences(q_data, maxlen=maxlen, padding='post')
+ab_data = pad_sequences(ab_data, maxlen=maxlen, padding='post')
+ag_data = pad_sequences(ag_data, maxlen=maxlen, padding='post')
 
 '''
 Notes:
@@ -71,8 +87,8 @@ Notes:
 '''
 
 # the model being used
-from keras_attention_cnn_model import make_model
-training_model, evaluation_model = make_model(maxlen, n_words)
+from keras_attention_model import make_model
+training_model, evaluation_model = make_model(maxlen, n_words, n_embed_dims=128, n_lstm_dims=256)
 
 print('Fitting model')
 training_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=20, batch_size=32, validation_split=0.2)

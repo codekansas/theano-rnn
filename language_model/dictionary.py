@@ -50,13 +50,13 @@ class Dictionary:
     def __len__(self):
         return self._id + 2
 
-    def convert(self, text, maxlen=None):
+    def convert(self, text):
         if isinstance(text, str):
             docs = [tokenize(text, to_lower=True)]
         else:
             docs = [tokenize(t, to_lower=True) for t in text]
 
-        return pad_sequences([asarray([self(t) for t in doc], dtype=np.int32) for doc in docs], maxlen=maxlen, value=self._id + 1)
+        return [asarray([self(t) for t in doc], dtype=np.int32) for doc in docs]
 
     def revert(self, tokens):
         texts = list()
