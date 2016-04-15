@@ -10,7 +10,6 @@ import sys
 from numpy import asarray
 import numpy as np
 from gensim.utils import tokenize
-from keras.preprocessing.sequence import pad_sequences
 
 
 class Dictionary:

@@ -102,7 +102,7 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
     if dic is None:
         dic = create_dictionary_from_qas(questions, answers)
 
-    qs, good, bad, targets = list(), list(), list(), list()
+    qs, ans, targets = list(), list(), list()
 
     for id, question in questions.items():
         qc = dic.convert(question['title'] + question['content'])[0]
@@ -112,19 +112,12 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
 
         m = min(len(gans), len(bans))
 
-        qs += [qc] * m
-        good += gans[:m]
-        bad += bans[:m]
+        qs += [qc] * m * 2
+        ans += gans[:m] + bans[:m]
+        targets += [1] * m + [0] * m
 
-    print(max([len(x) for x in qs]))
-    print(max([len(x) for x in good]))
-    print(max([len(x) for x in bad]))
-    print(sum([len(x) for x in good]))
-    print(len([len(x) for x in good]))
+    targets = np.asarray(targets)
+    qs = pad_sequences(qs, maxlen=maxlen, padding='post', truncating='post')
+    ans = pad_sequences(ans, maxlen=maxlen, padding='post', truncating='post')
 
-    targets = np.asarray([0] * len(qs))
-    qs = pad_sequences(qs, maxlen=maxlen, padding='post')
-    good = pad_sequences(good, maxlen=maxlen, padding='post')
-    bad = pad_sequences(bad, maxlen=maxlen, padding='post')
-
-    return targets, qs, good, bad, len(dic)
+    return targets, qs, ans, len(dic)
