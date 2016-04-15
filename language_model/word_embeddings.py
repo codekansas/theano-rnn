@@ -82,6 +82,10 @@ def train_model():
 
 if __name__ == '__main__':
     # train_model()
-    model = Word2Vec.load('word2vec.model')
-    d = dict([(k, v.index) for k, v in model.vocab.items()])
-    pickle.dump(d, open('word2vec.dict', 'wb'))
+    # model = Word2Vec.load('word2vec.model')
+
+    # d = dict([(k, v.index) for k, v in model.vocab.items()])
+    # pickle.dump(d, open('word2vec.dict', 'wb'))
+
+    d = pickle.load(open('word2vec.dict', 'rb'))
+    print(sorted(list(d.items()), key=lambda a, b: b))

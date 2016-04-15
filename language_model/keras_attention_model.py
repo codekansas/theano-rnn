@@ -3,7 +3,7 @@ from __future__ import print_function
 ##############
 # Make model #
 ##############
-from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout
+from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking
 from keras.optimizers import SGD
 
 from language_model.word_embeddings import Word2VecEmbedding
@@ -14,12 +14,14 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
 
     from language_model.attention_lstm import AttentionLSTM
 
-    from keras.layers import Input, LSTM, Embedding, merge
+    from keras.layers import Input, LSTM, merge
     from keras.models import Model
+    import keras.backend as K
 
     # input
     question = Input(shape=(maxlen,), dtype='int32')
-    answer = Input(shape=(maxlen,), dtype='int32')
+    answer_good = Input(shape=(maxlen,), dtype='int32')
+    answer_bad = Input(shape=(maxlen,), dtype='int32')
 
     # language model
     embedding = Word2VecEmbedding('word2vec.model')
@@ -43,19 +45,29 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, return_sequences=True)
 
     # answer part
-    a_emb = embedding(answer)
-    a_fl = f_lstm_attention(a_emb)
-    a_bl = b_lstm_attention(a_emb)
-    a_out = merge([a_fl, a_bl], mode='concat', concat_axis=2)
-    a_out = MaxPooling1D()(a_out)
-    a_out = Flatten()(a_out)
+    ag_emb = embedding(answer_good)
+    ag_fl = f_lstm_attention(ag_emb)
+    ag_bl = b_lstm_attention(ag_emb)
+    ag_out = merge([ag_fl, ag_bl], mode='concat', concat_axis=2)
+    ag_out = MaxPooling1D()(ag_out)
+    ag_out = Flatten()(ag_out)
+
+    ab_emb = embedding(answer_bad)
+    ab_fl = f_lstm_attention(ab_emb)
+    ab_bl = b_lstm_attention(ab_emb)
+    ab_out = merge([ab_fl, ab_bl], mode='concat', concat_axis=2)
+    ab_out = MaxPooling1D()(ab_out)
+    ab_out = Flatten()(ab_out)
 
     # merge together
     # note: `cos` refers to "cosine similarity", i.e. similar vectors should go to 1
     # for training's sake, "abs" limits range to be tween 0 and 1 (binary classification)
-    target = merge([q_out, a_out], name='target', mode='cos', dot_axes=1)
+    good_out = merge([q_out, ag_out], name='good', mode='cos', dot_axes=1)
+    bad_out = merge([q_out, ab_out], name='bad', mode='cos', dot_axes=1)
 
-    model = Model(input=[question, answer], output=target)
+    target = merge([good_out, bad_out], name='target', mode=lambda x: K.maximum(0, 0.2 - x[0] + x[1]), output_shape=lambda x: x[0])
+
+    model = Model(input=[question, answer_good, answer_bad], output=target)
 
     # need to choose binary crossentropy or mean squared error
     print('Compiling model...')
@@ -65,12 +77,15 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
 
     # this is more true to the paper: L = max{0, M - cosine(q, a+) + cosine(q, a-)}
     # below, "a" is a list of zeros and "b" is `target` above, i.e. 1 - cosine(q, a+) + cosine(q, a-)
-    loss = 'binary_crossentropy'
+    # loss = 'binary_crossentropy'
     # loss = 'mse'
     # loss = 'hinge'
 
+    def loss(y_true, y_pred):
+        return y_pred
+
     # unfortunately, the hinge loss approach means the "accura cy" metric isn't very valuable
-    metrics = ['accuracy']
+    metrics = []
 
     model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
