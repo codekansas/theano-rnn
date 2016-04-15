@@ -77,7 +77,7 @@ def train_model():
 
     sentences = questions + answers
 
-    model = Word2Vec(sentences, min_count=1)
+    model = Word2Vec(sentences, size=100, min_count=1)
     model.save('word2vec.model')
 
 if __name__ == '__main__':

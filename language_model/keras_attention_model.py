@@ -9,7 +9,7 @@ from keras.optimizers import SGD
 from language_model.word_embeddings import Word2VecEmbedding
 
 
-def make_model(maxlen, n_words, n_lstm_dims=500, n_embed_dims=128):
+def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     from keras.optimizers import RMSprop
 
     from language_model.attention_lstm import AttentionLSTM
@@ -60,13 +60,13 @@ def make_model(maxlen, n_words, n_lstm_dims=500, n_embed_dims=128):
     # need to choose binary crossentropy or mean squared error
     print('Compiling model...')
 
-    optimizer = RMSprop(lr=0.0001)
-    # optimizer = SGD(lr=0.001, momentum=0.9, nesterov=True)
+    # optimizer = RMSprop(lr=0.0001)
+    optimizer = SGD(lr=0.001, momentum=0.9, nesterov=True)
 
     # this is more true to the paper: L = max{0, M - cosine(q, a+) + cosine(q, a-)}
     # below, "a" is a list of zeros and "b" is `target` above, i.e. 1 - cosine(q, a+) + cosine(q, a-)
-    # loss = 'binary_crossentropy'
-    loss = 'mse'
+    loss = 'binary_crossentropy'
+    # loss = 'mse'
     # loss = 'hinge'
 
     # unfortunately, the hinge loss approach means the "accura cy" metric isn't very valuable

@@ -92,7 +92,7 @@ def get_data(f_name):
 
 # model parameters
 n_words = 22354
-maxlen = 100
+maxlen = 200
 
 # the model being used
 print('Generating model')
@@ -147,6 +147,6 @@ print('Fitting model')
 
 for i in range(100):
     print('Iteration %d' % i)
-    model.fit([q_data, a_data], targets, nb_epoch=20, batch_size=256, validation_split=0.2)
+    model.fit([q_data, a_data], targets, nb_epoch=20, batch_size=20, validation_split=0.2)
     evaluate(full=(i % 10 == 0))
     model.save_weights('trained_iqa_model.h5', overwrite=True)
