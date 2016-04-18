@@ -102,22 +102,24 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
     if dic is None:
         dic = create_dictionary_from_qas(questions, answers)
 
-    qs, ans, targets = list(), list(), list()
+    qs, gans, bans, targets = list(), list(), list(), list()
 
     for id, question in questions.items():
         qc = dic.convert(question['title'] + question['content'])[0]
 
-        gans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) >= 3]
-        bans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) < 3]
+        ggans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) >= 3]
+        bbans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) < 3]
 
-        m = min(len(gans), len(bans))
+        m = min(len(ggans), len(bbans))
 
-        qs += [qc] * m * 2
-        ans += gans[:m] + bans[:m]
-        targets += [1] * m + [0] * m
+        qs += [qc] * m
+        gans += ggans[:m]
+        bans += bbans[:m]
+        targets += [0] * m
 
     targets = np.asarray(targets)
     qs = pad_sequences(qs, maxlen=maxlen, padding='post', truncating='post')
-    ans = pad_sequences(ans, maxlen=maxlen, padding='post', truncating='post')
+    gans = pad_sequences(gans, maxlen=maxlen, padding='post', truncating='post')
+    bans = pad_sequences(bans, maxlen=maxlen, padding='post', truncating='post')
 
-    return targets, qs, ans, len(dic)
+    return targets, qs, gans, bans, len(dic)

@@ -8,9 +8,9 @@ import keras.backend as K
 
 class Word2VecEmbedding(Layer):
     def __init__(self, model_path, **kwargs):
-        self.model = Word2Vec.load(model_path)
-        self.W = K.variable(self.model.syn0)
-        self.model_dims = self.model.syn0.shape
+        model = Word2Vec.load(model_path)
+        self.W = K.variable(model.syn0)
+        self.model_dims = model.syn0.shape
         super(Word2VecEmbedding, self).__init__(**kwargs)
 
     def build(self, input_shape):
@@ -81,11 +81,11 @@ def train_model():
     model.save('word2vec.model')
 
 if __name__ == '__main__':
-    # train_model()
-    # model = Word2Vec.load('word2vec.model')
+    train_model()
+    model = Word2Vec.load('word2vec.model')
 
-    # d = dict([(k, v.index) for k, v in model.vocab.items()])
-    # pickle.dump(d, open('word2vec.dict', 'wb'))
+    d = dict([(k, v.index) for k, v in model.vocab.items()])
+    pickle.dump(d, open('word2vec.dict', 'wb'))
 
-    d = pickle.load(open('word2vec.dict', 'rb'))
-    print(sorted(list(d.items()), key=lambda a, b: b))
+    # d = pickle.load(open('word2vec.dict', 'rb'))
+    # print(sorted(list(d.items()), key=lambda a, b: b))
