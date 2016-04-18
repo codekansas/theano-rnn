@@ -3,7 +3,7 @@ from __future__ import print_function
 ##############
 # Make model #
 ##############
-from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking
+from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking, Embedding
 from keras.optimizers import SGD
 
 from language_model.word_embeddings import Word2VecEmbedding
@@ -24,11 +24,12 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     answer_bad = Input(shape=(maxlen,), dtype='int32')
 
     # language model
-    embedding = Word2VecEmbedding('word2vec.model')
+    embedding = Embedding(n_words, n_embed_dims, mask_zero=True)
+    # embedding = Word2VecEmbedding('word2vec.model')
 
     # forward and backward lstms
-    f_lstm = LSTM(n_lstm_dims, return_sequences=True)
-    b_lstm = LSTM(n_lstm_dims, go_backwards=True, return_sequences=True)
+    f_lstm = LSTM(n_lstm_dims, consume_less='mem', return_sequences=True)
+    b_lstm = LSTM(n_lstm_dims, consume_less='mem', go_backwards=True, return_sequences=True)
 
     # Note: Change concat_axis to 2 if return_sequences=True
 
@@ -41,8 +42,8 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     q_out = Flatten()(q_out)
 
     # forward and backward attention lstms (paying attention to q_out)
-    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, return_sequences=True)
-    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, return_sequences=True)
+    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, consume_less='mem', return_sequences=True)
+    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, consume_less='mem', go_backwards=True, return_sequences=True)
 
     # answer part
     ag_emb = embedding(answer_good)
@@ -98,11 +99,16 @@ if __name__ == '__main__':
     from language_model.get_data import get_data_set, create_dictionary_from_qas
 
     dic = create_dictionary_from_qas()
-    targets, questions, answers, n_dims = get_data_set(maxlen)
+    targets, questions, good_answers, bad_answers, n_dims = get_data_set(maxlen)
+
+    print(targets.shape)
+    print(questions.shape)
+    print(good_answers.shape)
+    print(bad_answers.shape)
 
     ### THIS MODEL PERFORMS WELL ON THE TEST SET
     model = make_model(maxlen, n_dims)
 
     print('Fitting model')
-    model.fit([questions, answers], targets, nb_epoch=5, batch_size=32, validation_split=0.2)
+    model.fit([questions, good_answers, bad_answers], targets, nb_epoch=5, batch_size=32, validation_split=0.2)
     model.save_weights('attention_lm_weights.h5', overwrite=True)

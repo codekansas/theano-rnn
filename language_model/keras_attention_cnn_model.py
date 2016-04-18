@@ -27,8 +27,8 @@ def make_model(maxlen, n_words, n_lstm_dims=128, n_output_dims=256, n_embed_dims
     embedding = Embedding(output_dim=n_embed_dims, input_dim=n_words, input_length=maxlen)
 
     # forward and backward lstms
-    f_lstm = LSTM(n_lstm_dims, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
-    b_lstm = LSTM(n_lstm_dims, go_backwards=True, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
+    f_lstm = LSTM(n_lstm_dims, dropout_U=0.2, dropout_W=0.2, consume_less='mem')#, return_sequences=True)
+    b_lstm = LSTM(n_lstm_dims, go_backwards=True, dropout_U=0.2, dropout_W=0.2, consume_less='mem')#, return_sequences=True)
 
     # Note: Change concat_axis to 2 if return_sequences=True
 
@@ -42,8 +42,8 @@ def make_model(maxlen, n_words, n_lstm_dims=128, n_output_dims=256, n_embed_dims
     # q_out = Flatten()(q_out)
 
     # forward and backward attention lstms (paying attention to q_out)
-    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
-    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, dropout_U=0.2, dropout_W=0.2)#, return_sequences=True)
+    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, dropout_U=0.2, dropout_W=0.2, consume_less='mem')#, return_sequences=True)
+    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, dropout_U=0.2, dropout_W=0.2, consume_less='mem')#, return_sequences=True)
 
     # convolution / maxpooling layers
     # conv = Convolution1D(n_conv_filters, conv_len, activation='relu')

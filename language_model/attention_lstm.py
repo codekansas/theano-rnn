@@ -39,8 +39,9 @@ class AttentionLSTM(Recurrent):
                  forget_bias_init='one', activation='tanh',
                  inner_activation='hard_sigmoid',
                  W_regularizer=None, U_regularizer=None, b_regularizer=None,
-                 dropout_W=0., dropout_U=0., **kwargs):
+                 dropout_W=0., dropout_U=0., mask_value=None, **kwargs):
         self.attention_vec = attention_vec
+        self.mask_value = mask_value
         self.output_dim = output_dim
         self.init = initializations.get(init)
         self.inner_init = initializations.get(inner_init)
@@ -181,6 +182,7 @@ class AttentionLSTM(Recurrent):
             return x
 
     def step(self, x, states):
+
         h_tm1 = states[0]
         c_tm1 = states[1]
         B_U = states[2]
