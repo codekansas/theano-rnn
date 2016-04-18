@@ -93,7 +93,7 @@ def get_data(f_name):
 
 # model parameters
 n_words = 22354
-maxlen = 200
+maxlen = 40
 
 # the model being used
 print('Generating model')
@@ -119,7 +119,6 @@ Notes:
 print('Fitting model')
 # training_model.load_weights('trained_iqa_model.h5')
 
-for i in range(100):
-    print('Iteration %d' % i)
-    model.fit([q_data, ag_data, ab_data], targets, nb_epoch=20, batch_size=128, validation_split=0.2)
-    model.save_weights('trained_iqa_model.h5', overwrite=True)
+# found through experimentation that ~24 epochs generalized the best
+model.fit([q_data, ag_data, ab_data], targets, nb_epoch=24, batch_size=128, validation_split=0.2)
+model.save_weights('trained_iqa_model.h5', overwrite=True)

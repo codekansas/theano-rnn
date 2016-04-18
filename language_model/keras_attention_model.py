@@ -7,7 +7,6 @@ from keras.engine import Merge
 from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking, Embedding, TimeDistributed
 from keras.optimizers import SGD
 
-from language_model.concatenate import concat
 from language_model.word_embeddings import Word2VecEmbedding
 
 
@@ -30,8 +29,8 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     # embedding = Word2VecEmbedding('word2vec.model')
 
     # forward and backward lstms
-    f_lstm = LSTM(n_lstm_dims, consume_less='mem', return_sequences=True)
-    b_lstm = LSTM(n_lstm_dims, consume_less='mem', go_backwards=True, return_sequences=True)
+    f_lstm = LSTM(n_lstm_dims, return_sequences=True)
+    b_lstm = LSTM(n_lstm_dims, go_backwards=True, return_sequences=True)
 
     # Note: Change concat_axis to 2 if return_sequences=True
 
@@ -44,8 +43,8 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     q_out = Flatten()(q_out)
 
     # forward and backward attention lstms (paying attention to q_out)
-    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, consume_less='mem', return_sequences=True)
-    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, consume_less='mem', go_backwards=True, return_sequences=True)
+    f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, return_sequences=True)
+    b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, return_sequences=True)
 
     # answer part
     ag_emb = embedding(answer_good)
@@ -96,7 +95,7 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
 
 if __name__ == '__main__':
     # get the data set
-    maxlen = 100 # words
+    maxlen = 40 # words
 
     from language_model.get_data import get_data_set, create_dictionary_from_qas
 

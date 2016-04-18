@@ -45,15 +45,11 @@ def train_model():
         word2idx[s[1]] = to_idx(s[0])
         idx2word[to_idx(s[0])] = s[1]
 
-
     def convert(text):
         return [word2idx.get(i, len(word2idx)) for i in text.split(' ')]
 
-
     def revert(ids):
         return ' '.join([idx2word.get(i, 'UNKNOWN') for i in ids])
-
-    from numpy import asarray
 
     # read answers
     with open(os.path.join(data_path, 'answers.label.token_idx'), 'r') as f:
