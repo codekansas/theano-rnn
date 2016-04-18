@@ -12,6 +12,7 @@ random.seed(42)
 data_path = '/media/moloch/HHD/MachineLearning/data/insuranceQA'
 
 emb_d = pickle.load(open('word2vec.dict', 'rb'))
+rev_d = dict([(v, k) for k, v in emb_d.items()])
 
 with open(os.path.join(data_path, 'vocabulary'), 'r') as f:
     lines = f.read()
@@ -30,6 +31,10 @@ def to_idx(x):
 
 def convert_from_idxs(x):
     return np.asarray([emb_d[idx_d[i]] for i in x.strip().split(' ')])
+
+
+def revert(x):
+    return ' '.join([rev_d.get(i, 'X') for i in x])
 
 with open(os.path.join(data_path, 'answers.label.token_idx'), 'r') as f:
     lines = f.read()
@@ -79,9 +84,9 @@ def get_data(f_name):
     random.shuffle(combined)
     q_data[:], ag_data[:], ab_data, targets[:], labels[:] = zip(*combined)
 
-    q_data = pad_sequences(q_data, maxlen=maxlen, padding='post', truncating='post', value=22294)
-    ag_data = pad_sequences(ag_data, maxlen=maxlen, padding='post', truncating='post', value=22294)
-    ab_data = pad_sequences(ab_data, maxlen=maxlen, padding='post', truncating='post', value=22294)
+    q_data = pad_sequences(q_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
+    ag_data = pad_sequences(ag_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
+    ab_data = pad_sequences(ab_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
     targets = np.asarray(targets)
 
     return q_data, ag_data, ab_data, targets
@@ -99,6 +104,11 @@ model = make_model(maxlen, n_words, n_embed_dims=128, n_lstm_dims=256)
 print('Getting data')
 q_data, ag_data, ab_data, targets = get_data('question.train.token_idx.label')
 
+print('----- Some Data -----')
+print(revert(q_data[0]))
+print(revert(ag_data[0]))
+print(revert(ab_data[0]))
+
 '''
 Notes:
 - Using the head/tail as the attention vector gave validation accuracy around 59
@@ -111,5 +121,5 @@ print('Fitting model')
 
 for i in range(100):
     print('Iteration %d' % i)
-    model.fit([q_data, ag_data, ab_data], targets, nb_epoch=20, batch_size=20, validation_split=0.2)
+    model.fit([q_data, ag_data, ab_data], targets, nb_epoch=20, batch_size=128, validation_split=0.2)
     model.save_weights('trained_iqa_model.h5', overwrite=True)

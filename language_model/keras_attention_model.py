@@ -72,8 +72,8 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     # need to choose binary crossentropy or mean squared error
     print('Compiling model...')
 
-    # optimizer = RMSprop(lr=0.0001)
-    optimizer = SGD(lr=0.001, momentum=0.9, nesterov=True)
+    optimizer = RMSprop(lr=0.0001)
+    # optimizer = SGD(lr=0.001, momentum=0.9, nesterov=True)
 
     # this is more true to the paper: L = max{0, M - cosine(q, a+) + cosine(q, a-)}
     # below, "a" is a list of zeros and "b" is `target` above, i.e. 1 - cosine(q, a+) + cosine(q, a-)
