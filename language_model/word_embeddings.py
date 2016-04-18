@@ -8,9 +8,9 @@ import keras.backend as K
 
 class Word2VecEmbedding(Layer):
     def __init__(self, model_path, **kwargs):
-        self.model = Word2Vec.load(model_path)
-        self.W = K.variable(self.model.syn0)
-        self.model_dims = self.model.syn0.shape
+        model = Word2Vec.load(model_path)
+        self.W = K.variable(model.syn0)
+        self.model_dims = model.syn0.shape
         super(Word2VecEmbedding, self).__init__(**kwargs)
 
     def build(self, input_shape):
