@@ -3,9 +3,11 @@ from __future__ import print_function
 ##############
 # Make model #
 ##############
-from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking, Embedding
+from keras.engine import Merge
+from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking, Embedding, TimeDistributed
 from keras.optimizers import SGD
 
+from language_model.concatenate import concat
 from language_model.word_embeddings import Word2VecEmbedding
 
 
@@ -24,7 +26,7 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     answer_bad = Input(shape=(maxlen,), dtype='int32')
 
     # language model
-    embedding = Embedding(n_words, n_embed_dims, mask_zero=True)
+    embedding = Embedding(n_words, n_embed_dims)
     # embedding = Word2VecEmbedding('word2vec.model')
 
     # forward and backward lstms
@@ -100,11 +102,6 @@ if __name__ == '__main__':
 
     dic = create_dictionary_from_qas()
     targets, questions, good_answers, bad_answers, n_dims = get_data_set(maxlen)
-
-    print(targets.shape)
-    print(questions.shape)
-    print(good_answers.shape)
-    print(bad_answers.shape)
 
     ### THIS MODEL PERFORMS WELL ON THE TEST SET
     model = make_model(maxlen, n_dims)
