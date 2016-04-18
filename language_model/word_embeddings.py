@@ -89,3 +89,5 @@ if __name__ == '__main__':
 
     # d = pickle.load(open('word2vec.dict', 'rb'))
     # print(sorted(list(d.items()), key=lambda a, b: b))
+    #
+    # Use the dictionary to convert sentences to vectors for dataset
