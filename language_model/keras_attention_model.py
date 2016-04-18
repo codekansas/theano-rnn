@@ -69,7 +69,8 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
 
     target = merge([good_out, bad_out], name='target', mode=lambda x: K.maximum(0, 0.2 - x[0] + x[1]), output_shape=lambda x: x[0])
 
-    model = Model(input=[question, answer_good, answer_bad], output=target)
+    train_model = Model(input=[question, answer_good, answer_bad], output=target)
+    test_model = Model(input=[question, answer_good], output=good_out)
 
     # need to choose binary crossentropy or mean squared error
     print('Compiling model...')
@@ -89,9 +90,10 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     # unfortunately, the hinge loss approach means the "accura cy" metric isn't very valuable
     metrics = []
 
-    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+    train_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+    test_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
-    return model
+    return train_model, test_model
 
 if __name__ == '__main__':
     # get the data set
@@ -103,8 +105,8 @@ if __name__ == '__main__':
     targets, questions, good_answers, bad_answers, n_dims = get_data_set(maxlen)
 
     ### THIS MODEL PERFORMS WELL ON THE TEST SET
-    model = make_model(maxlen, n_dims)
+    train_model, test_model = make_model(maxlen, n_dims)
 
     print('Fitting model')
-    model.fit([questions, good_answers, bad_answers], targets, nb_epoch=5, batch_size=32, validation_split=0.2)
-    model.save_weights('attention_lm_weights.h5', overwrite=True)
+    train_model.fit([questions, good_answers, bad_answers], targets, nb_epoch=5, batch_size=32, validation_split=0.2)
+    train_model.save_weights('attention_lm_weights.h5', overwrite=True)

@@ -6,6 +6,7 @@ import pickle
 
 import numpy as np
 from keras.preprocessing.sequence import pad_sequences
+from scipy.stats import rankdata
 
 random.seed(42)
 
@@ -30,7 +31,7 @@ def to_idx(x):
 
 
 def convert_from_idxs(x):
-    return np.asarray([emb_d[idx_d[i]] for i in x.strip().split(' ')])
+    return np.asarray([emb_d.get(idx_d[i], 22295) for i in x.strip().split(' ')])
 
 
 def revert(x):
@@ -48,6 +49,28 @@ for answer in lines.split('\n'):
     answers[id] = convert_from_idxs(txt)
 
 
+def get_eval(f_name):
+    with open(os.path.join(data_path, f_name), 'r') as f:
+        lines = f.read()
+
+    q_data = list()
+    a_data = list()
+
+    for qa_pair in lines.split('\n'):
+        if len(qa_pair) == 0: continue
+
+        a, q, g = qa_pair.split('\t')
+
+        good_answers = [int(i) for i in a.strip().split(' ')]
+        all_answers = set([int(i) for i in g.strip().split(' ') if i not in good_answers])
+
+        question = convert_from_idxs(q)
+        q_data.append(pad_sequences([question], maxlen=maxlen, padding='post', truncating='post', value=22295))
+        a_data.append(pad_sequences([answers[i] for i in [good_answers[0]] + list(all_answers)], maxlen=maxlen, padding='post', truncating='post', value=22295))
+
+    return q_data, a_data
+
+
 def get_data(f_name):
     with open(os.path.join(data_path, f_name), 'r') as f:
         lines = f.read()
@@ -56,8 +79,6 @@ def get_data(f_name):
     ag_data = list()
     ab_data = list()
     targets = list()
-
-    labels = list()
 
     for qa_pair in lines.split('\n'):
         if len(qa_pair) == 0: continue
@@ -73,16 +94,14 @@ def get_data(f_name):
         ag_data += [answers[int(i)] for i in good_answers]
         ab_data += [answers[int(i)] for i in bad_answers]
 
-        labels += [int(i) for i in good_answers] * 2
-
         question = convert_from_idxs(q)
         q_data += [question] * len(good_answers)
         targets += [0] * len(bad_answers)
 
     # shuffle the data (i'm not sure if keras does this, but it could help generalize)
-    combined = zip(q_data, ag_data, ab_data, targets, labels)
+    combined = zip(q_data, ag_data, ab_data, targets)
     random.shuffle(combined)
-    q_data[:], ag_data[:], ab_data, targets[:], labels[:] = zip(*combined)
+    q_data[:], ag_data[:], ab_data, targets[:] = zip(*combined)
 
     q_data = pad_sequences(q_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
     ag_data = pad_sequences(ag_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
@@ -90,6 +109,53 @@ def get_data(f_name):
     targets = np.asarray(targets)
 
     return q_data, ag_data, ab_data, targets
+
+
+def get_accurate_percentage(model, questions, good_answers, bad_answers, n_eval=512):
+
+    if n_eval != 'all':
+        questions = questions[-n_eval:]
+        good_answers = good_answers[-n_eval:]
+        bad_answers = bad_answers[-n_eval:]
+
+    good_output = model.predict([questions, good_answers], batch_size=128)
+    bad_output = model.predict([questions, bad_answers], batch_size=128)
+
+    correct = (good_output > bad_output).sum() / float(len(questions))
+
+    return correct
+
+
+def get_mrr(model, questions, all_answers, n_eval=512):
+
+    if n_eval != 'all':
+        questions = questions[-n_eval:]
+        all_answers = all_answers[-n_eval:]
+
+    c = 0
+
+    for i in range(len(questions)):
+        question = questions[i]
+        ans = all_answers[i]
+
+        qs = np.repeat(question, len(ans), 0)
+
+        sims = model.predict([qs, ans]).flatten()
+        r = rankdata(sims)
+
+        print(i)
+        print(revert(answers[np.argmax(r)]))
+        print(revert(question[0]))
+
+        print(sims)
+        print(r)
+
+        x = 1 / float(max(r) - r[0] + 1)
+        print(x)
+
+        c += x
+
+    return c / len(questions)
 
 # model parameters
 n_words = 22354
@@ -99,26 +165,28 @@ maxlen = 40
 print('Generating model')
 
 from keras_attention_model import make_model
-model = make_model(maxlen, n_words, n_embed_dims=128, n_lstm_dims=256)
+train_model, test_model = make_model(maxlen, n_words, n_embed_dims=128, n_lstm_dims=256)
 
 print('Getting data')
-q_data, ag_data, ab_data, targets = get_data('question.train.token_idx.label')
-
-print('----- Some Data -----')
-print(revert(q_data[0]))
-print(revert(ag_data[0]))
-print(revert(ab_data[0]))
-
-'''
-Notes:
-- Using the head/tail as the attention vector gave validation accuracy around 59
-- The maxpooling result appears to be much better (without convolutional layer)
-'''
-
-
-print('Fitting model')
-# training_model.load_weights('trained_iqa_model.h5')
+data_sets = [
+    'question.train.token_idx.label',
+    'question.test1.label.token_idx.pool',
+    'question.test2.label.token_idx.pool',
+]
+# d_set = data_sets[1]
+# q_data, ag_data, ab_data, targets = get_data(d_set)
 
 # found through experimentation that ~24 epochs generalized the best
-model.fit([q_data, ag_data, ab_data], targets, nb_epoch=24, batch_size=128, validation_split=0.2)
-model.save_weights('trained_iqa_model.h5', overwrite=True)
+# print('Fitting model')
+# train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=24, batch_size=128, validation_split=0.2)
+# train_model.save_weights('iqa_model_for_training.h5', overwrite=True)
+# test_model.save_weights('iqa_model_for_prediction.h5', overwrite=True)
+
+# the model actually did really well, predicted correct vs. incorrect answer 85% of the time on the validation set
+# test_model.load_weights('iqa_model_for_prediction.h5')
+# print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval='all')))
+
+d_set = data_sets[1]
+q_data, a_data = get_eval(d_set)
+test_model.load_weights('iqa_model_for_prediction.h5')
+print('MRR: {}'.format(get_mrr(test_model, q_data, a_data)))
