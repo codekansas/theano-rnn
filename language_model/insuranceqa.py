@@ -55,6 +55,7 @@ def get_eval(f_name):
 
     q_data = list()
     a_data = list()
+    n_correct = list()
 
     for qa_pair in lines.split('\n'):
         if len(qa_pair) == 0: continue
@@ -66,9 +67,11 @@ def get_eval(f_name):
 
         question = convert_from_idxs(q)
         q_data.append(pad_sequences([question], maxlen=maxlen, padding='post', truncating='post', value=22295))
-        a_data.append(pad_sequences([answers[i] for i in [good_answers[0]] + list(all_answers)], maxlen=maxlen, padding='post', truncating='post', value=22295))
+        a_data.append(pad_sequences([answers[i] for i in good_answers + list(all_answers)], maxlen=maxlen, padding='post', truncating='post', value=22295))
 
-    return q_data, a_data
+        n_correct.append(len(good_answers))
+
+    return q_data, a_data, n_correct
 
 
 def get_data(f_name):
@@ -89,7 +92,7 @@ def get_data(f_name):
             a, q, g = qa_pair.split('\t')
 
         good_answers = set([int(i) for i in a.strip().split(' ')])
-        bad_answers = random.sample([int(i) for i in answers.keys() if i not in good_answers], len(good_answers))
+        bad_answers = random.sample([int(i) for i in answers.keys()], len(good_answers))
 
         ag_data += [answers[int(i)] for i in good_answers]
         ab_data += [answers[int(i)] for i in bad_answers]
@@ -111,9 +114,9 @@ def get_data(f_name):
     return q_data, ag_data, ab_data, targets
 
 
-def get_accurate_percentage(model, questions, good_answers, bad_answers, n_eval=512):
+def get_accurate_percentage(model, questions, good_answers, bad_answers, n_eval=-1):
 
-    if n_eval != 'all':
+    if n_eval != -1:
         questions = questions[-n_eval:]
         good_answers = good_answers[-n_eval:]
         bad_answers = bad_answers[-n_eval:]
@@ -126,9 +129,9 @@ def get_accurate_percentage(model, questions, good_answers, bad_answers, n_eval=
     return correct
 
 
-def get_mrr(model, questions, all_answers, n_eval=512):
+def get_mrr(model, questions, all_answers, n_correct, n_eval=-1):
 
-    if n_eval != 'all':
+    if n_eval != -1:
         questions = questions[-n_eval:]
         all_answers = all_answers[-n_eval:]
 
@@ -143,15 +146,7 @@ def get_mrr(model, questions, all_answers, n_eval=512):
         sims = model.predict([qs, ans]).flatten()
         r = rankdata(sims)
 
-        print(i)
-        print(revert(answers[np.argmax(r)]))
-        print(revert(question[0]))
-
-        print(sims)
-        print(r)
-
-        x = 1 / float(max(r) - r[0] + 1)
-        print(x)
+        x = 1 / float(max(r) - max(r[:n_correct[i]]) + 1)
 
         c += x
 
@@ -173,20 +168,27 @@ data_sets = [
     'question.test1.label.token_idx.pool',
     'question.test2.label.token_idx.pool',
 ]
-# d_set = data_sets[1]
-# q_data, ag_data, ab_data, targets = get_data(d_set)
+q_data, ag_data, ab_data, targets = get_data(data_sets[0])
+qv_data, avg_data, avb_data, v_targets = get_data(data_sets[1])
 
 # found through experimentation that ~24 epochs generalized the best
-# print('Fitting model')
-# train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=24, batch_size=128, validation_split=0.2)
-# train_model.save_weights('iqa_model_for_training.h5', overwrite=True)
-# test_model.save_weights('iqa_model_for_prediction.h5', overwrite=True)
+print('Fitting model')
+for i in range(100):
+    # shuffle the bad data between epochs to help generalize better
+    print(i)
+    np.random.shuffle(ab_data)
+    train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=1, batch_size=128, validation_data=[[qv_data, avg_data, avb_data], v_targets], shuffle=True)
 
-# the model actually did really well, predicted correct vs. incorrect answer 85% of the time on the validation set
-# test_model.load_weights('iqa_model_for_prediction.h5')
-# print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval='all')))
+train_model.save_weights('iqa_model_for_training.h5', overwrite=True)
+test_model.save_weights('iqa_model_for_prediction.h5', overwrite=True)
 
-d_set = data_sets[1]
-q_data, a_data = get_eval(d_set)
+# the model actually did really well here
+print('Calculating correct vs. incorrect prediction rate...')
 test_model.load_weights('iqa_model_for_prediction.h5')
-print('MRR: {}'.format(get_mrr(test_model, q_data, a_data)))
+print('Percent correct: {}'.format(get_accurate_percentage(test_model, qv_data, avg_data, avb_data)))
+
+# evaluate the model for MRR
+print('Calculating MRR...')
+q_data, a_data, n_correct = get_eval(data_sets[1])
+test_model.load_weights('iqa_model_for_prediction.h5')
+print('MRR: {}'.format(get_mrr(test_model, q_data, a_data, n_correct)))
